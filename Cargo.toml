@@ -1,0 +1,57 @@
+[package]
+name = "plurimus_filepicker"
+description = "A file picker widget for plurimus: a path field over a filtered directory listing."
+documentation = "https://docs.rs/plurimus_filepicker"
+version = "0.1.0"
+authors = ["Norman Kerr"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kenianbei/plurimus-filepicker"
+readme = "README.md"
+keywords = ["bevy", "ratatui", "tui", "terminal", "widget"]
+categories = ["command-line-interface", "gui"]
+rust-version = "1.95"
+
+[dependencies]
+bevy_app = "0.19"
+bevy_ecs = "0.19"
+bevy_input = { version = "0.19", features = ["keyboard", "mouse"] }
+bevy_input_focus = { version = "0.19", default-features = false, features = ["std", "keyboard"] }
+plurimus_core = "0.7.1"
+plurimus_ui = "0.7.1"
+plurimus_widgets = "0.7.1"
+
+[dev-dependencies]
+plurimus_crossterm = "0.7.1"
+plurimus_term = "0.7.1"
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[lints.rust]
+missing_docs = "warn"
+
+[lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# Nursery is not enabled as a group; two of its lints are selected by hand.
+missing_const_for_fn = "warn"
+redundant_clone = "warn"
+
+# Cell geometry is u16 and text is measured in usize; narrowing between them
+# is the crate's job, so whether a cast is clamped belongs to review.
+cast_possible_truncation = "allow"
+
+# Bevy system parameters are values by construction.
+needless_pass_by_value = "allow"
+
+# Query types are genuinely that shape.
+type_complexity = "allow"
+
+# A two-arm match on a bool is a value match; house style.
+match_bool = "allow"

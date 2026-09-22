@@ -1,0 +1,3 @@
+# Dependency names the dictionary mistakes for misspellings.
+[default.extend-words]
+ratatui = "ratatui"
