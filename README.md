@@ -24,7 +24,23 @@ app.add_plugins(FilePickerPlugin);
 commands.spawn(file_picker("."));
 ```
 
-Observe `ValueChange<PathBuf>` on the picker entity to receive the chosen path.
+Give the picker a `UiArea`, focus it, and observe `ValueChange<PathBuf>` on its
+entity to receive the chosen path. `cargo run --example files` opens one over
+the current directory in a modal pane.
+
+| key                        | does                                         |
+| -------------------------- | -------------------------------------------- |
+| typing                     | filters the listed directory                 |
+| Up, Down, PageUp, PageDown | move the cursor                              |
+| Enter                      | descends into a directory, or chooses a file |
+| Tab, Right                 | completes the cursor's entry into the field  |
+| Left, Backspace on empty   | climbs to the parent directory               |
+| Ctrl+H                     | toggles hidden entries                       |
+| Esc                        | triggers `ModalDismiss` on the picker        |
+
+Every binding is data in `FilePickerKeys`. `FilePickerFloor` stops traversal
+above a directory; `FilePickerLook` sets the prompt and whether dot-entries are
+listed; `FilePickerMatchStyle` styles the matched characters.
 
 ## Compatibility
 

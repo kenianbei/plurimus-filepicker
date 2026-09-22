@@ -18,12 +18,13 @@ bevy_ecs = "0.19"
 bevy_input = { version = "0.19", features = ["keyboard", "mouse"] }
 bevy_input_focus = { version = "0.19", default-features = false, features = ["std", "keyboard"] }
 plurimus_core = "0.7.1"
+plurimus_term = "0.7.1"
 plurimus_ui = "0.7.1"
 plurimus_widgets = "0.7.1"
 
 [dev-dependencies]
 plurimus_crossterm = "0.7.1"
-plurimus_term = "0.7.1"
+tempfile = "3"
 
 [profile.dev.package."*"]
 opt-level = 3
