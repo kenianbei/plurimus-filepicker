@@ -15,12 +15,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the hits. `..`, `~`, and absolute paths are ordinary text, so the picker
   traverses above its base by typing.
 - Directories list first, then names case-insensitively, hidden entries dropped
-  unless `FilePickerLook::hidden`; a directory that cannot be read lists
-  nothing. `FilePickerFloor` stops traversal above a directory by writing the
-  field back to it.
+  unless `FilePickerLook::hidden`, files dropped unless their extension is in
+  `FilePickerLook::extensions` when that is set; a directory that cannot be read
+  lists nothing. `FilePickerFloor` stops traversal above a directory by writing
+  the field back to it.
+- With `FilePickerLook::accepts_new`, the filter is offered after the matches as
+  a file to create, badged `new`, unless an entry already has that name; Enter
+  on it chooses the path, so a save dialog can be a picker.
 - Keys as data in `FilePickerKeys`: Enter descends or chooses, Tab and Right
   complete the cursor's entry, Left and Backspace on an empty filter climb,
-  Ctrl+H toggles hidden entries, Escape triggers `ModalDismiss`. Unbound keys
+  Ctrl+. toggles hidden entries, Escape triggers `ModalDismiss`. Unbound keys
   edit the field; Up, Down, PageUp and PageDown move the list's cursor. A double
   click chooses a row.
 - Choosing a file triggers `ValueChange<PathBuf>` on the picker, once per press.

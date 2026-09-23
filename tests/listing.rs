@@ -49,6 +49,30 @@ fn look_hidden_lists_dot_entries_dimmed() {
 }
 
 #[test]
+fn extensions_list_matching_files_and_every_directory() {
+    let dir = scratch();
+    std::fs::write(dir.path().join("c.toml"), "").unwrap();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    assert_eq!(
+        row_texts(&app),
+        ["sub/", "Zeta/", "a.txt", "b.txt", "c.toml"]
+    );
+
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(FilePickerLook::default().with_extensions(["TXT"]));
+    app.update();
+    assert_eq!(row_texts(&app), ["sub/", "Zeta/", "a.txt", "b.txt"]);
+
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(FilePickerLook::default().with_extensions(["toml"]));
+    app.update();
+    assert_eq!(row_texts(&app), ["sub/", "Zeta/", "c.toml"]);
+}
+
+#[test]
 fn set_path_relists_and_filters() {
     let dir = scratch();
     let mut app = app();

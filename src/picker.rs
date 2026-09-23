@@ -108,6 +108,11 @@ pub struct FilePickerLook {
     pub hidden: bool,
     /// Drawn before the field's text.
     pub prompt: Line<'static>,
+    /// Offer the filter as a new file name when no entry has it exactly.
+    pub accepts_new: bool,
+    /// List only files with one of these extensions, compared without
+    /// case; empty lists every file. Directories always list.
+    pub extensions: Vec<String>,
 }
 
 impl FilePickerLook {
@@ -124,6 +129,23 @@ impl FilePickerLook {
         self.prompt = prompt.into();
         self
     }
+
+    /// With the filter offered as a new file name or not.
+    #[must_use]
+    pub const fn with_accepts_new(mut self, accepts_new: bool) -> Self {
+        self.accepts_new = accepts_new;
+        self
+    }
+
+    /// With only files of these extensions listed.
+    #[must_use]
+    pub fn with_extensions<E: Into<String>>(
+        mut self,
+        extensions: impl IntoIterator<Item = E>,
+    ) -> Self {
+        self.extensions = extensions.into_iter().map(Into::into).collect();
+        self
+    }
 }
 
 impl Default for FilePickerLook {
@@ -131,6 +153,8 @@ impl Default for FilePickerLook {
         Self {
             hidden: false,
             prompt: Line::from(DEFAULT_PROMPT),
+            accepts_new: false,
+            extensions: Vec::new(),
         }
     }
 }

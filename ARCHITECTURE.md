@@ -27,8 +27,12 @@ A picker is two entities the crate manages and rows it respawns:
   keys act only on the focused `ListBox`, so the tab stop is the list, and
   `InputFocus` set to the root is redirected to it on the next frame.
 - **Rows**, `list_item` children of the list, each carrying a private `Entry`
-  naming the directory entry it stands for. A listing with nothing left has one
-  dim "no match" row with no `Entry` and no cursor.
+  naming the directory entry it stands for. With `FilePickerLook::accepts_new`,
+  a filter that names a file rather than `.` or `..`, and no entry read with
+  that exact name, one more row follows the matches: the filter as an `Entry`
+  that is not a directory, badged `new` through `ListItemTrailing`, so `Enter`
+  and `Complete` treat it as any file. A listing with nothing left has one dim
+  "no match" row with no `Entry` and no cursor.
 
 ## Path model
 
@@ -62,10 +66,13 @@ frame ahead of the engine's row passes:
    read lists nothing. An entry's kind comes from the directory read, with a
    stat only for symlinks.
 2. `rebuild_rows` runs when the listing, look, match style, or filter changed.
-   It despawns the old rows last child first, ranks the entries through
+   It despawns the old rows last child first, keeps entries the look admits
+   (hidden ones only with `hidden`, files only with an extension in `extensions`
+   when that list is set, directories always), ranks them through
    `matching::find_match` stably on score, spawns a row per hit with the matched
    characters styled and a separator suffix on a directory, dims hidden rows,
-   and writes `ActiveDescendant` to the first row.
+   appends the typed row when the look accepts a new name, and writes
+   `ActiveDescendant` to the first row.
 3. `place_file_picker_parts` runs when the root's area, order, or list changed.
    It cuts the root's area with `layout::split_area` into the one-row field and
    the rest, and writes the list's `ComputedWidgetArea`, `UiArea::Fixed` through

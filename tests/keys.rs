@@ -9,6 +9,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
+use plurimus_filepicker::FilePickerLook;
 use plurimus_term::{KeyCode, ModifierKey};
 use plurimus_ui::{ModalDismiss, ValueChange};
 use support::{
@@ -143,16 +144,22 @@ fn parent_climbs_above_the_base_and_stops_at_the_root() {
 }
 
 #[test]
-fn ctrl_h_toggles_hidden_entries() {
+fn ctrl_dot_toggles_hidden_entries() {
     let dir = scratch();
     let mut app = logged_app();
     spawn_picker(&mut app, dir.path());
 
     press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('h'));
+    assert!(
+        !rows(&app).iter().any(|row| row.contains(".hidden")),
+        "Ctrl+H is unbound"
+    );
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('.'));
     assert!(rows(&app).iter().any(|row| row.contains(".hidden")));
     assert_eq!(rows(&app)[0], ">", "the chord did not type");
 
-    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('h'));
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('.'));
     assert!(!rows(&app).iter().any(|row| row.contains(".hidden")));
 }
 
@@ -194,4 +201,115 @@ fn a_click_moves_the_cursor_and_a_double_click_chooses() {
 
     click(&mut app, 3, 3);
     assert_eq!(chosen(&app), [(entity, dir.path().join("a.txt"))]);
+}
+
+fn accept_new(app: &mut App, entity: Entity) {
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(FilePickerLook::default().with_accepts_new(true));
+    app.update();
+}
+
+#[test]
+fn typed_row_follows_the_matches_and_a_partial_match_still_opens() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    accept_new(&mut app, entity);
+    type_text(&mut app, "a");
+    assert_eq!(rows(&app)[1], "> a.txt");
+    assert!(rows(&app)[3].starts_with("  a") && rows(&app)[3].ends_with("new"));
+
+    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        chosen(&app),
+        [
+            (entity, dir.path().join("a.txt")),
+            (entity, dir.path().join("a"))
+        ]
+    );
+}
+
+#[test]
+fn an_unmatched_name_is_chosen_with_one_enter() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    accept_new(&mut app, entity);
+    type_text(&mut app, "plan");
+
+    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(chosen(&app), [(entity, dir.path().join("plan"))]);
+}
+
+#[test]
+fn an_exact_existing_name_offers_no_typed_row() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    accept_new(&mut app, entity);
+    type_text(&mut app, "b.txt");
+
+    assert_eq!(rows(&app)[1], "> b.txt");
+    assert!(
+        !rows(&app).iter().any(|row| row.ends_with("new")),
+        "{:?}",
+        rows(&app)
+    );
+}
+
+#[test]
+fn without_accepts_new_an_unmatched_name_chooses_nothing() {
+    let dir = scratch();
+    let mut app = logged_app();
+    spawn_picker(&mut app, dir.path());
+    type_text(&mut app, "plan");
+
+    assert_eq!(rows(&app)[1], "no match");
+    press_key(&mut app, KeyCode::Enter);
+    assert!(chosen(&app).is_empty());
+}
+
+#[test]
+fn a_typed_name_survives_the_extension_filter() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    app.world_mut().entity_mut(entity).insert(
+        FilePickerLook::default()
+            .with_accepts_new(true)
+            .with_extensions(["toml"]),
+    );
+    app.update();
+    type_text(&mut app, "notes");
+
+    assert!(rows(&app)[1].ends_with("new"), "{:?}", rows(&app));
+    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(chosen(&app), [(entity, dir.path().join("notes"))]);
+}
+
+#[test]
+fn a_name_kept_off_the_list_is_not_offered_as_new() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    app.world_mut().entity_mut(entity).insert(
+        FilePickerLook::default()
+            .with_accepts_new(true)
+            .with_extensions(["toml"]),
+    );
+    app.update();
+    let has_new = |app: &App| rows(app).iter().any(|row| row.ends_with("new"));
+
+    type_text(&mut app, "b.txt");
+    assert!(!has_new(&app), "filtered out by extension, still exists");
+
+    set_path(&mut app, entity, ".hidden");
+    assert!(!has_new(&app), "hidden, still exists");
+
+    set_path(&mut app, entity, "..");
+    assert!(!has_new(&app), "not a file name");
 }

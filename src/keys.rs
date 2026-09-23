@@ -18,7 +18,7 @@ use crate::parts::PickerList;
 use crate::path::{directory_text, normalize};
 use crate::picker::{FilePicker, FilePickerLook};
 
-const TOGGLE_HIDDEN_CHARACTER: &str = "h";
+const TOGGLE_HIDDEN_CHARACTER: &str = ".";
 const DOUBLE_CLICK: u8 = 2;
 const PARENT_ON_EMPTY_FILTER: [(KeyBinding, FilePickerAction); 1] =
     [(KeyBinding::new(Key::Backspace), FilePickerAction::Parent)];

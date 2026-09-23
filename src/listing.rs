@@ -5,9 +5,9 @@ use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{Commands, Component, Entity, Mut, Query, Ref};
 use plurimus_core::ratatui_core::style::{Modifier, Style};
-use plurimus_core::ratatui_core::text::Span;
+use plurimus_core::ratatui_core::text::{Line, Span};
 use plurimus_ui::UiStyle;
-use plurimus_widgets::{ActiveDescendant, list_item};
+use plurimus_widgets::{ActiveDescendant, ListItemTrailing, list_item};
 
 use crate::matching::{Match, find_match, light_matches};
 use crate::parts::PickerList;
@@ -16,6 +16,7 @@ use crate::picker::{FilePicker, FilePickerFloor, FilePickerLook, FilePickerMatch
 
 const HIDDEN_PREFIX: char = '.';
 const NO_MATCH: &str = "no match";
+const NEW_BADGE: &str = "new";
 const DIM: Style = Style::new().add_modifier(Modifier::DIM);
 
 /// One entry of the listed directory; on a row, the entry it stands for.
@@ -118,8 +119,12 @@ pub(crate) fn rebuild_rows(
         for &row in old_rows.into_iter().flatten() {
             commands.entity(row).despawn();
         }
-        let ranked = ranked(&listing.entries, filter, look.hidden);
-        let first = spawn_rows(&mut commands, list.0, ranked, lit.0);
+        let ranked = ranked(&listing.entries, filter, &look);
+        let is_new = look.accepts_new && is_creatable(filter, &listing.entries);
+        let mut first = spawn_rows(&mut commands, list.0, ranked, lit.0);
+        if is_new {
+            first.get_or_insert(spawn_typed_row(&mut commands, list.0, filter));
+        }
         if first.is_none() {
             commands.spawn((list_item(NO_MATCH), UiStyle(DIM), ChildOf(list.0)));
         }
@@ -139,23 +144,63 @@ fn spawn_rows(
         if entry.is_dir {
             label.push_span(Span::raw(MAIN_SEPARATOR_STR));
         }
-        let mut row = commands.spawn((list_item(label), entry.clone(), ChildOf(list)));
-        if entry.is_hidden() {
-            row.insert(UiStyle(DIM));
-        }
-        first.get_or_insert(row.id());
+        let row = commands
+            .spawn((list_item(label), entry.clone(), ChildOf(list)))
+            .insert_if(UiStyle(DIM), || entry.is_hidden())
+            .id();
+        first.get_or_insert(row);
     }
     first
 }
 
+// Against every entry read, not the rows shown: a name a hidden entry or
+// the extension filter keeps off the list still exists.
+fn is_creatable(filter: &str, entries: &[Entry]) -> bool {
+    Path::new(filter).file_name().is_some() && !entries.iter().any(|entry| entry.name == filter)
+}
+
+/// The filter itself as a file to create, after the entries so the cursor
+/// still opens on the best existing match.
+fn spawn_typed_row(commands: &mut Commands, list: Entity, name: &str) -> Entity {
+    let entry = Entry {
+        name: name.to_owned(),
+        is_dir: false,
+    };
+    let badge = ListItemTrailing(Line::styled(NEW_BADGE, DIM));
+    commands
+        .spawn((list_item(name.to_owned()), badge, ChildOf(list)))
+        .insert_if(UiStyle(DIM), || entry.is_hidden())
+        .insert(entry)
+        .id()
+}
+
 // Stable on score, so ties keep the listing's order: directories first,
 // then names case-insensitively.
-fn ranked<'a>(entries: &'a [Entry], filter: &str, hidden: bool) -> Vec<(&'a Entry, Match)> {
+fn ranked<'a>(
+    entries: &'a [Entry],
+    filter: &str,
+    look: &FilePickerLook,
+) -> Vec<(&'a Entry, Match)> {
     let mut ranked: Vec<(&Entry, Match)> = entries
         .iter()
-        .filter(|entry| hidden || !entry.is_hidden())
+        .filter(|entry| look.hidden || !entry.is_hidden())
+        .filter(|entry| entry.is_dir || has_listed_extension(&look.extensions, &entry.name))
         .filter_map(|entry| find_match(filter, &entry.name).map(|hit| (entry, hit)))
         .collect();
     ranked.sort_by_key(|(_, hit)| Reverse(hit.score));
     ranked
+}
+
+fn has_listed_extension(extensions: &[String], name: &str) -> bool {
+    if extensions.is_empty() {
+        return true;
+    }
+    Path::new(name)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extensions
+                .iter()
+                .any(|listed| listed.eq_ignore_ascii_case(extension))
+        })
 }
