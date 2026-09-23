@@ -42,8 +42,15 @@ Every binding is data in `FilePickerKeys`. `..` lists first in any directory
 with a parent, so Enter on it climbs too. `FilePickerFloor` stops traversal
 above a directory. `FilePickerLook` sets the prompt, whether dot-entries are
 listed, which extensions are listed, and whether the filter is offered as a new
-file name for a save dialog. `FilePickerMatchStyle` styles the matched
-characters.
+file name for a save dialog; with exactly one extension listed, a name typed
+without one is offered with it, so `copy` offers `copy.toml`.
+`FilePickerMatchStyle` styles the matched characters.
+
+`FilePickerDecorator` badges and styles file rows: a function from a file's path
+to a `RowDecoration`, a trailing line and a style, run once per file each time a
+directory is read. `ListBoxCursor`, `ListBoxStripe` and `ListBoxSelectionMarker`
+put on the picker dress its list, so the list's look is set at the picker's
+spawn.
 
 ## Compatibility
 
