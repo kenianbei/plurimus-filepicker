@@ -11,10 +11,11 @@ use plurimus_widgets::{ActiveDescendant, ListItemTrailing, list_item};
 
 use crate::matching::{Match, find_match, light_matches};
 use crate::parts::PickerList;
-use crate::path::{directory_text, or_current, resolve};
+use crate::path::{directory_text, has_parent, or_current, resolve};
 use crate::picker::{FilePicker, FilePickerFloor, FilePickerLook, FilePickerMatchStyle};
 
 const HIDDEN_PREFIX: char = '.';
+const PARENT: &str = "..";
 const NO_MATCH: &str = "no match";
 const NEW_BADGE: &str = "new";
 const DIM: Style = Style::new().add_modifier(Modifier::DIM);
@@ -28,7 +29,11 @@ pub(crate) struct Entry {
 
 impl Entry {
     pub fn is_hidden(&self) -> bool {
-        self.name.starts_with(HIDDEN_PREFIX)
+        !self.is_parent() && self.name.starts_with(HIDDEN_PREFIX)
+    }
+
+    pub fn is_parent(&self) -> bool {
+        self.name == PARENT
     }
 }
 
@@ -37,6 +42,8 @@ impl Entry {
 pub(crate) struct Listing {
     pub directory: PathBuf,
     pub entries: Vec<Entry>,
+    /// The directory is neither a root nor the floor.
+    pub has_parent: bool,
 }
 
 /// The filter the rows were last built for.
@@ -50,25 +57,33 @@ pub(crate) struct BuiltRows {
 /// the field does, so a relative floor means what a relative field means.
 pub(crate) fn relist(mut pickers: Query<(Mut<FilePicker>, Ref<FilePickerFloor>, &mut Listing)>) {
     for (mut picker, floor, mut listing) in &mut pickers {
-        if !picker.is_changed() && !floor.is_changed() {
+        let floor_changed = floor.is_changed();
+        if !picker.is_changed() && !floor_changed {
             continue;
         }
-        let mut directory = picker.resolved_directory();
-        if let Some(floor) = floor
+        let floor = floor
             .0
             .as_deref()
-            .map(|floor| resolve(floor, picker.base()))
-            && !directory.starts_with(&floor)
+            .map(|floor| resolve(floor, picker.base()));
+        let mut directory = picker.resolved_directory();
+        if let Some(floor) = &floor
+            && !directory.starts_with(floor)
         {
-            let text = directory_text(&floor, picker.base());
+            let text = directory_text(floor, picker.base());
             picker.set_path(text);
-            directory = floor;
+            directory.clone_from(floor);
         }
-        if listing.directory == directory {
+        if listing.directory == directory && !floor_changed {
             continue;
         }
-        listing.entries = read_entries(&or_current(directory.clone()));
-        listing.directory = directory;
+        let is_climbable = floor.as_ref() != Some(&directory) && has_parent(&directory);
+        if listing.has_parent != is_climbable {
+            listing.has_parent = is_climbable;
+        }
+        if listing.directory != directory {
+            listing.entries = read_entries(&or_current(directory.clone()));
+            listing.directory = directory;
+        }
     }
 }
 
@@ -91,8 +106,9 @@ fn read_entries(directory: &Path) -> Vec<Entry> {
     entries
 }
 
-/// Respawns the list's rows from the listing and the filter, cursor on
-/// the first, whenever either changed.
+/// Respawns the list's rows from the listing and the filter whenever either
+/// changed, `..` ahead of the entries when the directory has a parent, the
+/// cursor on the first row that is not `..`.
 pub(crate) fn rebuild_rows(
     mut pickers: Query<(
         &FilePicker,
@@ -119,16 +135,20 @@ pub(crate) fn rebuild_rows(
         for &row in old_rows.into_iter().flatten() {
             commands.entity(row).despawn();
         }
-        let ranked = ranked(&listing.entries, filter, &look);
+        let parent = listing.has_parent.then(|| Entry {
+            name: PARENT.to_owned(),
+            is_dir: true,
+        });
+        let ranked = ranked(parent.iter().chain(&listing.entries), filter, &look);
         let is_new = look.accepts_new && is_creatable(filter, &listing.entries);
-        let mut first = spawn_rows(&mut commands, list.0, ranked, lit.0);
+        let mut cursor = spawn_rows(&mut commands, list.0, ranked, lit.0);
         if is_new {
-            first.get_or_insert(spawn_typed_row(&mut commands, list.0, filter));
+            cursor.get_or_insert(spawn_typed_row(&mut commands, list.0, filter));
         }
-        if first.is_none() {
+        if cursor.is_none() {
             commands.spawn((list_item(NO_MATCH), UiStyle(DIM), ChildOf(list.0)));
         }
-        commands.entity(list.0).insert(ActiveDescendant(first));
+        commands.entity(list.0).insert(ActiveDescendant(cursor));
     }
 }
 
@@ -139,6 +159,7 @@ fn spawn_rows(
     hit_style: Style,
 ) -> Option<Entity> {
     let mut first = None;
+    let mut cursor = None;
     for (entry, hit) in ranked {
         let mut label = light_matches(&entry.name, &hit.indices, hit_style);
         if entry.is_dir {
@@ -149,8 +170,11 @@ fn spawn_rows(
             .insert_if(UiStyle(DIM), || entry.is_hidden())
             .id();
         first.get_or_insert(row);
+        if !entry.is_parent() {
+            cursor.get_or_insert(row);
+        }
     }
-    first
+    cursor.or(first)
 }
 
 // Against every entry read, not the rows shown: a name a hidden entry or
@@ -177,12 +201,11 @@ fn spawn_typed_row(commands: &mut Commands, list: Entity, name: &str) -> Entity 
 // Stable on score, so ties keep the listing's order: directories first,
 // then names case-insensitively.
 fn ranked<'a>(
-    entries: &'a [Entry],
+    entries: impl Iterator<Item = &'a Entry>,
     filter: &str,
     look: &FilePickerLook,
 ) -> Vec<(&'a Entry, Match)> {
     let mut ranked: Vec<(&Entry, Match)> = entries
-        .iter()
         .filter(|entry| look.hidden || !entry.is_hidden())
         .filter(|entry| entry.is_dir || has_listed_extension(&look.extensions, &entry.name))
         .filter_map(|entry| find_match(filter, &entry.name).map(|hit| (entry, hit)))

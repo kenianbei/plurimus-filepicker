@@ -18,8 +18,9 @@ A picker is two entities the crate manages and rows it respawns:
   text is the whole state. The root requires `Hovered`, `StylistCache`,
   `FilePickerKeys`, `TextInputKeys`, `FilePickerLook`, `FilePickerFloor`,
   `FilePickerMatchStyle`, `ComputedWidgetArea`, and two private components:
-  `Listing`, the entries read for the directory last named, and `BuiltRows`, the
-  filter the rows were last built for. The app gives the root its `UiArea`.
+  `Listing`, the entries read for the directory last named and whether that
+  directory has a parent to climb to, and `BuiltRows`, the filter the rows were
+  last built for. The app gives the root its `UiArea`.
 - **The list**, a child `ListBox` the crate spawns on the frame after the root
   appears, with `ListBoxKeys` pruned to Up, Down, PageUp and PageDown, a
   `ScrollArea`, and the `TabIndex` that `listbox()` carries. The root records it
@@ -27,12 +28,15 @@ A picker is two entities the crate manages and rows it respawns:
   keys act only on the focused `ListBox`, so the tab stop is the list, and
   `InputFocus` set to the root is redirected to it on the next frame.
 - **Rows**, `list_item` children of the list, each carrying a private `Entry`
-  naming the directory entry it stands for. With `FilePickerLook::accepts_new`,
-  a filter that names a file rather than `.` or `..`, and no entry read with
-  that exact name, one more row follows the matches: the filter as an `Entry`
-  that is not a directory, badged `new` through `ListItemTrailing`, so `Enter`
-  and `Complete` treat it as any file. A listing with nothing left has one dim
-  "no match" row with no `Entry` and no cursor.
+  naming the directory entry it stands for. Where the listed directory has a
+  parent, `..` is a directory `Entry` ahead of the entries read, drawn `../`,
+  matched, lit and filtered like the rest and never hidden; the cursor opens on
+  the first row after it. With `FilePickerLook::accepts_new`, a filter that
+  names a file rather than `.` or `..`, and no entry read with that exact name,
+  one more row follows the matches: the filter as an `Entry` that is not a
+  directory, badged `new` through `ListItemTrailing`, so `Enter` and `Complete`
+  treat it as any file. A listing with nothing left has one dim "no match" row
+  with no `Entry` and no cursor.
 
 ## Path model
 
@@ -42,10 +46,12 @@ either separator on Windows. `field_directory` expands a leading `~` through
 normalizes lexically: `.` dropped, `..` popping the segment before it, held at a
 root, accumulating below a relative start. The working directory resolves to the
 empty path, which keeps prefix checks against a floor honest;
-`FilePicker::directory` names it `.`. `directory_text` is the inverse for
-writing a directory back into the field: relative beneath the base, climbing
-with `..` when both are relative, absolute otherwise, always with a trailing
-separator. The floor check is lexical; a symlink below the floor can lead out.
+`FilePicker::directory` names it `.`. `has_parent` judges a directory on its
+absolute form, resolved against the working directory, so a `..` chain below a
+relative base ends at the real root. `directory_text` is the inverse for writing
+a directory back into the field: relative beneath the base, climbing with `..`
+when both are relative, absolute otherwise, always with a trailing separator.
+The floor check is lexical; a symlink below the floor can lead out.
 
 ## Frame
 
@@ -60,19 +66,22 @@ frame ahead of the engine's row passes:
 
 1. `relist` runs when the picker or its floor changed. It resolves the floor
    against the base the way the field is resolved, writes the field back to the
-   floor when the directory falls outside it, and reads the directory with
-   `std::fs::read_dir` only when it differs from the one last read. Entries sort
-   directories first, then names case-insensitively; a directory that cannot be
-   read lists nothing. An entry's kind comes from the directory read, with a
-   stat only for symlinks.
+   floor when the directory falls outside it, and stops there when the directory
+   is the one last read and the floor did not change. Otherwise it records
+   whether the directory has a parent, `has_parent` and not the floor, and reads
+   the directory with `std::fs::read_dir` when it differs from the one last
+   read. Entries sort directories first, then names case-insensitively; a
+   directory that cannot be read has no entries. An entry's kind comes from the
+   directory read, with a stat only for symlinks.
 2. `rebuild_rows` runs when the listing, look, match style, or filter changed.
-   It despawns the old rows last child first, keeps entries the look admits
-   (hidden ones only with `hidden`, files only with an extension in `extensions`
-   when that list is set, directories always), ranks them through
-   `matching::find_match` stably on score, spawns a row per hit with the matched
-   characters styled and a separator suffix on a directory, dims hidden rows,
-   appends the typed row when the look accepts a new name, and writes
-   `ActiveDescendant` to the first row.
+   It despawns the old rows last child first, puts `..` ahead of the entries
+   when the listing has a parent, keeps entries the look admits (hidden ones
+   only with `hidden`, files only with an extension in `extensions` when that
+   list is set, directories always), ranks them through `matching::find_match`
+   stably on score, spawns a row per hit with the matched characters styled and
+   a separator suffix on a directory, dims hidden rows, appends the typed row
+   when the look accepts a new name, and writes `ActiveDescendant` to the first
+   row that is not `..`, or to the first row.
 3. `place_file_picker_parts` runs when the root's area, order, or list changed.
    It cuts the root's area with `layout::split_area` into the one-row field and
    the rest, and writes the list's `ComputedWidgetArea`, `UiArea::Fixed` through
@@ -97,17 +106,16 @@ between hits. `light_matches` builds the row's line with hit runs in
 Keys reach the root by bubbling from the focused list, which has already taken
 its own. `file_picker_key`, a global `FocusedInput<KeyboardInput>` observer on a
 `FilePicker` without `InteractionDisabled`, scans `FilePickerKeys` through
-`first_bound`, then Backspace on an empty filter as `Parent`, then hands the key
-to the field's `TextInput::handle` with the root's `TextInputKeys`. A bound key
-is consumed; a key the field took is consumed and marks the picker changed;
-anything else bubbles on.
+`first_bound`, then hands the key to the field's `TextInput::handle` with the
+root's `TextInputKeys`. A bound key is consumed; a key the field took is
+consumed and marks the picker changed; anything else bubbles on.
 
 `FilePickerAction`: `Parent` writes the parent of the listed directory through
-`directory_text`; `Enter` completes a directory or triggers
-`ValueChange<PathBuf>` on the root for a file, skipped on a key repeat;
-`Complete` writes the cursor's entry into the field with a separator after a
-directory; `ToggleHidden` flips `FilePickerLook::hidden`; `Close` triggers
-`ModalDismiss { entity: root }`.
+`directory_text` when the listing has one, and nothing at a root or the floor;
+`Enter` completes a directory or triggers `ValueChange<PathBuf>` on the root for
+a file, skipped on a key repeat; `Complete` writes the cursor's entry into the
+field with a separator after a directory; `ToggleHidden` flips
+`FilePickerLook::hidden`; `Close` triggers `ModalDismiss { entity: root }`.
 
 Two more global observers: `PointerPress` on the root focuses its list unless
 the root has `PressFocusDisabled`, and a `Click` with count two or more on the

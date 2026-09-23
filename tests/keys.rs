@@ -2,7 +2,7 @@
 
 mod support;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -65,7 +65,7 @@ fn down_moves_the_cursor_through_the_list() {
     let children = app.world().get::<Children>(list).unwrap().to_vec();
 
     press_key(&mut app, KeyCode::Down);
-    assert_eq!(cursor(&app, list), Some(children[1]));
+    assert_eq!(cursor(&app, list), Some(children[2]));
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn enter_on_a_directory_descends() {
 
     press_key(&mut app, KeyCode::Enter);
     assert_eq!(picker(&app, entity).path(), "sub/");
-    assert_eq!(rows(&app)[1], "> inner.rs");
+    assert_eq!(rows(&app)[2], "> inner.rs");
     assert!(chosen(&app).is_empty());
 }
 
@@ -110,7 +110,7 @@ fn complete_writes_the_cursor_entry_into_the_field() {
 }
 
 #[test]
-fn left_and_backspace_on_an_empty_filter_go_to_the_parent() {
+fn left_climbs_and_backspace_on_an_empty_filter_edits() {
     let dir = scratch();
     let mut app = logged_app();
     let entity = spawn_picker(&mut app, dir.path());
@@ -123,7 +123,24 @@ fn left_and_backspace_on_an_empty_filter_go_to_the_parent() {
 
     press_key(&mut app, KeyCode::Enter);
     press_key(&mut app, KeyCode::Backspace);
+    assert_eq!(picker(&app, entity).path(), "sub");
     assert_eq!(picker(&app, entity).directory(), dir.path());
+}
+
+#[test]
+fn enter_on_the_parent_row_climbs() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+
+    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        picker(&app, entity).directory(),
+        dir.path().parent().unwrap()
+    );
+    assert_eq!(picker(&app, entity).filter(), "");
+    assert!(chosen(&app).is_empty());
 }
 
 #[test]
@@ -140,7 +157,23 @@ fn parent_climbs_above_the_base_and_stops_at_the_root() {
 
     set_path(&mut app, entity, "/x");
     press_key(&mut app, KeyCode::Left);
-    assert_eq!(picker(&app, entity).path(), "/");
+    assert_eq!(picker(&app, entity).path(), "/x", "nothing above the root");
+}
+
+#[test]
+fn parent_over_a_relative_base_stops_at_the_root() {
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, Path::new("."));
+    let depth = std::env::current_dir()
+        .expect("a working directory")
+        .components()
+        .count()
+        .saturating_sub(1);
+
+    for _ in 0..depth + 2 {
+        press_key(&mut app, KeyCode::Left);
+    }
+    assert_eq!(picker(&app, entity).path(), "../".repeat(depth));
 }
 
 #[test]
@@ -195,11 +228,11 @@ fn a_click_moves_the_cursor_and_a_double_click_chooses() {
     let list = list_of(&mut app, entity);
     let children = app.world().get::<Children>(list).unwrap().to_vec();
 
-    click(&mut app, 3, 3);
-    assert_eq!(cursor(&app, list), Some(children[2]));
+    click(&mut app, 3, 4);
+    assert_eq!(cursor(&app, list), Some(children[3]));
     assert!(chosen(&app).is_empty(), "one click chooses nothing");
 
-    click(&mut app, 3, 3);
+    click(&mut app, 3, 4);
     assert_eq!(chosen(&app), [(entity, dir.path().join("a.txt"))]);
 }
 

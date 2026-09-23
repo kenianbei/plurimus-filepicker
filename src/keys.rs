@@ -13,21 +13,20 @@ use plurimus_ui::{
 };
 use plurimus_widgets::{ActiveDescendant, ListBox, TextInputKeys};
 
-use crate::listing::Entry;
+use crate::listing::{Entry, Listing};
 use crate::parts::PickerList;
 use crate::path::{directory_text, normalize};
 use crate::picker::{FilePicker, FilePickerLook};
 
 const TOGGLE_HIDDEN_CHARACTER: &str = ".";
 const DOUBLE_CLICK: u8 = 2;
-const PARENT_ON_EMPTY_FILTER: [(KeyBinding, FilePickerAction); 1] =
-    [(KeyBinding::new(Key::Backspace), FilePickerAction::Parent)];
 
 /// What a bound key does to a picker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FilePickerAction {
-    /// The field becomes the parent of the listed directory, filter cleared.
+    /// The field becomes the parent of the listed directory, filter cleared;
+    /// nothing at a root or at the floor.
     Parent,
     /// Descends into the cursor's directory, or chooses the cursor's file.
     Enter,
@@ -74,6 +73,7 @@ pub(crate) struct PickerAccess<'w, 's> {
             &'static TextInputKeys,
             &'static PickerList,
             &'static mut FilePickerLook,
+            &'static Listing,
         ),
         Without<InteractionDisabled>,
     >,
@@ -89,7 +89,7 @@ impl PickerAccess<'_, '_> {
             FilePickerAction::Enter => self.enter(picker, is_repeat),
             FilePickerAction::Complete => self.complete(picker),
             FilePickerAction::ToggleHidden => {
-                if let Ok((.., mut look)) = self.pickers.get_mut(picker) {
+                if let Ok((.., mut look, _)) = self.pickers.get_mut(picker) {
                     look.hidden = !look.hidden;
                 }
             }
@@ -98,15 +98,18 @@ impl PickerAccess<'_, '_> {
     }
 
     fn cursor_entry(&self, picker: Entity) -> Option<Entry> {
-        let (_, _, _, list, _) = self.pickers.get(picker).ok()?;
+        let (_, _, _, list, ..) = self.pickers.get(picker).ok()?;
         let row = self.cursors.get(list.0).ok()?.0?;
         self.entries.get(row).ok().cloned()
     }
 
     fn go_to_parent(&mut self, picker: Entity) {
-        let Ok((mut state, ..)) = self.pickers.get_mut(picker) else {
+        let Ok((mut state, .., listing)) = self.pickers.get_mut(picker) else {
             return;
         };
+        if !listing.has_parent {
+            return;
+        }
         let parent = normalize(
             &state
                 .resolved_directory()
@@ -147,24 +150,19 @@ impl PickerAccess<'_, '_> {
     }
 }
 
-/// The picker's bindings first, then Backspace on an empty filter as
-/// `Parent`, then the field for whatever is left, so an unbound character
-/// types. Reached by bubbling from the focused child list.
+/// The picker's bindings first, then the field for whatever is left, so an
+/// unbound character types. Reached by bubbling from the focused child list.
 pub(crate) fn file_picker_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
     mut access: PickerAccess,
 ) {
     let picker = input.focused_entity;
-    let Ok((state, keys, ..)) = access.pickers.get(picker) else {
+    let Ok((_, keys, ..)) = access.pickers.get(picker) else {
         return;
     };
     let held = held.get();
-    let mut bound = first_bound(&keys.0, &input.input, held);
-    if bound.is_none() && state.filter().is_empty() {
-        bound = first_bound(&PARENT_ON_EMPTY_FILTER, &input.input, held);
-    }
-    if let Some(action) = bound {
+    if let Some(action) = first_bound(&keys.0, &input.input, held) {
         input.propagate(false);
         access.apply(picker, action, input.input.repeat);
         return;

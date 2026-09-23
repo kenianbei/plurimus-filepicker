@@ -21,6 +21,12 @@ pub(crate) fn resolve(path: &Path, base: &Path) -> PathBuf {
     normalize(&base.join(path))
 }
 
+/// Whether `directory` has a parent to climb to, judged on its absolute
+/// form so a `..` chain below a relative base stops at the root.
+pub(crate) fn has_parent(directory: &Path) -> bool {
+    std::env::current_dir().is_ok_and(|cwd| resolve(directory, &cwd).parent().is_some())
+}
+
 /// `.` for the empty path [`resolve`] hands back, `path` otherwise.
 pub(crate) fn or_current(path: PathBuf) -> PathBuf {
     if path.as_os_str().is_empty() {
@@ -85,7 +91,9 @@ pub(crate) fn directory_text(directory: &Path, base: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{directory_text, field_directory, normalize, or_current, split_at_separator};
+    use super::{
+        directory_text, field_directory, has_parent, normalize, or_current, split_at_separator,
+    };
     use std::path::{Path, PathBuf};
 
     fn directory(text: &str) -> PathBuf {
@@ -149,6 +157,13 @@ mod tests {
             directory_text(Path::new("../b"), Path::new("../a")),
             "../b/"
         );
+    }
+
+    #[test]
+    fn has_parent_is_judged_on_the_absolute_form() {
+        assert!(!has_parent(Path::new("/")));
+        assert!(has_parent(Path::new("/x")));
+        assert!(has_parent(Path::new("")));
     }
 
     #[test]

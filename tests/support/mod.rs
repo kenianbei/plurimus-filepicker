@@ -22,7 +22,7 @@ use plurimus_ui::UiArea;
 use plurimus_widgets::{ActiveDescendant, ListBox};
 
 pub const COLS: u16 = 20;
-pub const ROWS: u16 = 6;
+pub const ROWS: u16 = 8;
 
 pub fn app() -> App {
     let mut app = App::new();

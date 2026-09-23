@@ -27,7 +27,7 @@ fn lists_directories_first_then_names_case_insensitively_without_hidden() {
     spawn_picker(&mut app, dir.path());
 
     assert_eq!(rows(&app)[0], ">");
-    assert_eq!(row_texts(&app), ["sub/", "Zeta/", "a.txt", "b.txt"]);
+    assert_eq!(row_texts(&app), ["../", "sub/", "Zeta/", "a.txt", "b.txt"]);
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn look_hidden_lists_dot_entries_dimmed() {
 
     assert_eq!(
         row_texts(&app),
-        ["sub/", "Zeta/", ".hidden", "a.txt", "b.txt"]
+        ["../", "sub/", "Zeta/", ".hidden", "a.txt", "b.txt"]
     );
     let styled = composed_styled_frame(&app);
     assert!(styled.contains("mods:DIM"), "hidden row is dim: {styled}");
@@ -56,20 +56,20 @@ fn extensions_list_matching_files_and_every_directory() {
     let entity = spawn_picker(&mut app, dir.path());
     assert_eq!(
         row_texts(&app),
-        ["sub/", "Zeta/", "a.txt", "b.txt", "c.toml"]
+        ["../", "sub/", "Zeta/", "a.txt", "b.txt", "c.toml"]
     );
 
     app.world_mut()
         .entity_mut(entity)
         .insert(FilePickerLook::default().with_extensions(["TXT"]));
     app.update();
-    assert_eq!(row_texts(&app), ["sub/", "Zeta/", "a.txt", "b.txt"]);
+    assert_eq!(row_texts(&app), ["../", "sub/", "Zeta/", "a.txt", "b.txt"]);
 
     app.world_mut()
         .entity_mut(entity)
         .insert(FilePickerLook::default().with_extensions(["toml"]));
     app.update();
-    assert_eq!(row_texts(&app), ["sub/", "Zeta/", "c.toml"]);
+    assert_eq!(row_texts(&app), ["../", "sub/", "Zeta/", "c.toml"]);
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn set_path_relists_and_filters() {
     let entity = spawn_picker(&mut app, dir.path());
 
     set_path(&mut app, entity, "sub/");
-    assert_eq!(row_texts(&app), ["inner.rs"]);
+    assert_eq!(row_texts(&app), ["../", "inner.rs"]);
 
     set_path(&mut app, entity, "b.");
     assert_eq!(row_texts(&app), ["b.txt"]);
@@ -111,27 +111,41 @@ fn nothing_matching_draws_one_dim_row_without_cursor() {
 }
 
 #[test]
-fn cursor_sits_on_the_first_row_after_every_rebuild() {
+fn cursor_opens_after_the_parent_row_and_on_the_first_match() {
     let dir = scratch();
     let mut app = app();
     let entity = spawn_picker(&mut app, dir.path());
     let list = list_of(&mut app, entity);
-    let first = |app: &bevy_app::App| app.world().get::<Children>(list).unwrap()[0];
+    let row = |app: &bevy_app::App, index: usize| app.world().get::<Children>(list).unwrap()[index];
 
-    assert_eq!(cursor(&app, list), Some(first(&app)));
+    assert_eq!(cursor(&app, list), Some(row(&app, 1)));
     set_path(&mut app, entity, "t");
     assert_eq!(row_texts(&app), ["a.txt", "b.txt", "Zeta/"]);
-    assert_eq!(cursor(&app, list), Some(first(&app)));
+    assert_eq!(cursor(&app, list), Some(row(&app, 0)));
+
+    set_path(&mut app, entity, "Zeta/");
+    assert_eq!(row_texts(&app), ["../"]);
+    assert_eq!(cursor(&app, list), Some(row(&app, 0)));
 }
 
 #[test]
-fn unreadable_directory_lists_nothing_and_keeps_the_field() {
+fn no_parent_row_at_the_root() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+
+    set_path(&mut app, entity, "/");
+    assert_ne!(row_texts(&app)[0], "../");
+}
+
+#[test]
+fn unreadable_directory_lists_only_the_parent_and_keeps_the_field() {
     let dir = scratch();
     let mut app = app();
     let entity = spawn_picker(&mut app, dir.path());
     set_path(&mut app, entity, "nope/");
 
-    assert_eq!(rows(&app)[1], "no match");
+    assert_eq!(row_texts(&app), ["../"]);
     assert_eq!(picker(&app, entity).path(), "nope/");
 }
 

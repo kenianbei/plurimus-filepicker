@@ -34,11 +34,12 @@ the current directory in a modal pane.
 | Up, Down, PageUp, PageDown | move the cursor                              |
 | Enter                      | descends into a directory, or chooses a file |
 | Tab, Right                 | completes the cursor's entry into the field  |
-| Left, Backspace on empty   | climbs to the parent directory               |
+| Left                       | climbs to the parent directory               |
 | Ctrl+.                     | toggles hidden entries                       |
 | Esc                        | triggers `ModalDismiss` on the picker        |
 
-Every binding is data in `FilePickerKeys`. `FilePickerFloor` stops traversal
+Every binding is data in `FilePickerKeys`. `..` lists first in any directory
+with a parent, so Enter on it climbs too. `FilePickerFloor` stops traversal
 above a directory. `FilePickerLook` sets the prompt, whether dot-entries are
 listed, which extensions are listed, and whether the filter is offered as a new
 file name for a save dialog. `FilePickerMatchStyle` styles the matched
