@@ -23,12 +23,15 @@ A picker is two entities the crate manages and rows it respawns:
   `BuiltRows`, the filter the rows were last built for. The app gives the root
   its `UiArea`, and may add `FilePickerDecorator`, a function from a file's path
   to a `RowDecoration`.
-- **The list**, a child `ListBox` the crate spawns on the frame after the root
-  appears, with `ListBoxKeys` pruned to Up, Down, PageUp and PageDown, a
-  `ScrollArea`, and the `TabIndex` that `listbox()` carries. The root records it
-  in a private `PickerList(Entity)`. The list holds focus: the engine's list
-  keys act only on the focused `ListBox`, so the tab stop is the list, and
-  `InputFocus` set to the root is redirected to it on the next frame.
+- **The list**, a child `ListBox` the crate spawns in the first `PreUpdate`
+  after the root appears, with `ListBoxKeys` pruned to Up, Down, PageUp and
+  PageDown, a `ScrollArea`, and the `TabIndex` that `listbox()` carries. The
+  root records it in a private `PickerList(Entity)`. The list holds focus: the
+  engine's list keys act only on the focused `ListBox`, so the tab stop is the
+  list, and `InputFocus` set to the root is redirected to it on the next frame.
+  `ListBoxCursor`, `ListBoxStripe` and `ListBoxSelectionMarker` on the root are
+  copied onto the list when it is installed and whenever they change on the
+  root; a removal is not copied.
 - **Rows**, `list_item` children of the list, each carrying a private `Entry`
   naming the directory entry it stands for. Where the listed directory has a
   parent, `..` is a directory `Entry` ahead of the entries read, drawn `../`,
@@ -63,7 +66,8 @@ The floor check is lexical; a symlink below the floor can lead out.
 In `PreUpdate`, before `UiSystems::Areas` and focus dispatch, chained:
 `install_file_picker_list` on `Added<FilePicker>`, `mirror_disabled`, which
 copies `InteractionDisabled` on and off the list because the engine does not
-pass it to children, and `redirect_focus`.
+pass it to children, `mirror_look`, which copies the list's look components from
+the root on `Added<PickerList>` or a change, and `redirect_focus`.
 
 After `InputFocusSystems::Dispatch` and `UiSystems::Areas`, before
 `WidgetSystems::Layout`, chained, so a key that edited the field lands the same

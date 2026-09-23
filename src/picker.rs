@@ -215,8 +215,11 @@ impl RowDecoration {
 
 /// A file picker opened on `base`, drawn like any other widget.
 ///
-/// Its list is a child spawned on the next frame; focusing the picker lands
-/// on that list, which is the tab stop.
+/// Its list is a child spawned in the next `PreUpdate`; focusing the picker
+/// lands on that list, which is the tab stop. `ListBoxCursor`,
+/// `ListBoxStripe` and `ListBoxSelectionMarker` put on the picker are copied
+/// onto the list when it is spawned and whenever they change; removing one
+/// does not.
 #[must_use]
 pub fn file_picker(base: impl Into<PathBuf>) -> impl Bundle {
     (FilePicker::new(base), UiWidget::default())

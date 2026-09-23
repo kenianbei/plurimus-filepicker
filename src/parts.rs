@@ -1,13 +1,17 @@
 use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut, Ref};
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{
-    Added, Commands, Component, Entity, Query, RemovedComponents, ResMut, With, Without,
+    Added, Changed, Commands, Component, Entity, Has, Or, Query, RemovedComponents, ResMut, With,
+    Without,
 };
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiOrder, local_area};
 use plurimus_ui::{ComputedWidgetArea, InteractionDisabled, Key, ScrollArea};
-use plurimus_widgets::{ListBox, ListBoxAction, ListBoxKeys, listbox};
+use plurimus_widgets::{
+    ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxSelectionMarker, ListBoxStripe,
+    listbox,
+};
 
 use crate::layout::split_area;
 use crate::picker::FilePicker;
@@ -109,6 +113,38 @@ pub(crate) fn mirror_disabled(
         if let Ok(list) = lists.get(picker) {
             commands.entity(list.0).remove::<InteractionDisabled>();
         }
+    }
+}
+
+type LookChanged = Or<(
+    Added<PickerList>,
+    Changed<ListBoxCursor>,
+    Changed<ListBoxStripe>,
+    Changed<ListBoxSelectionMarker>,
+)>;
+
+/// A removal is not copied: the engine does not repaint on one either.
+pub(crate) fn mirror_look(
+    pickers: Query<
+        (
+            &PickerList,
+            Option<&ListBoxCursor>,
+            Option<&ListBoxStripe>,
+            Has<ListBoxSelectionMarker>,
+        ),
+        LookChanged,
+    >,
+    mut commands: Commands,
+) {
+    for (list, cursor, stripe, has_marker) in &pickers {
+        let mut list = commands.entity(list.0);
+        if let Some(cursor) = cursor {
+            list.insert(cursor.clone());
+        }
+        if let Some(&stripe) = stripe {
+            list.insert(stripe);
+        }
+        list.insert_if(ListBoxSelectionMarker, || has_marker);
     }
 }
 

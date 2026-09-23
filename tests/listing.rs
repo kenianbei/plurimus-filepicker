@@ -7,9 +7,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bevy_ecs::hierarchy::Children;
+use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
-use plurimus_filepicker::{FilePickerDecorator, FilePickerFloor, FilePickerLook, RowDecoration};
-use plurimus_ui::InteractionDisabled;
+use plurimus_core::ratatui_core::text::Line;
+use plurimus_filepicker::{
+    FilePickerDecorator, FilePickerFloor, FilePickerLook, RowDecoration, file_picker,
+};
+use plurimus_ui::{InteractionDisabled, UiArea};
+use plurimus_widgets::{ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe};
 use support::{
     app, composed_styled_frame, cursor, focus, focused, list_of, picker, rows, scratch, set_path,
     spawn_picker,
@@ -310,4 +315,84 @@ fn a_decorator_runs_once_per_directory_read() {
 
     set_path(&mut app, entity, "sub/");
     assert_eq!(calls.load(Ordering::Relaxed), 4, "sub/ holds one file");
+}
+
+const CURSOR: &str = "» ";
+
+fn list_cursor(app: &bevy_app::App, list: bevy_ecs::entity::Entity) -> Option<&Line<'static>> {
+    app.world()
+        .get::<ListBoxCursor>(list)
+        .map(|cursor| &cursor.0)
+}
+
+#[test]
+fn a_cursor_spawned_on_the_picker_dresses_its_list() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = app
+        .world_mut()
+        .spawn((
+            file_picker(dir.path()),
+            UiArea::Fixed(Rect::new(0, 0, support::COLS, support::ROWS)),
+            ListBoxCursor(Line::from(CURSOR)),
+        ))
+        .id();
+    focus(&mut app, entity);
+    app.update();
+
+    assert!(
+        rows(&app).iter().any(|row| row.starts_with(CURSOR)),
+        "{:?}",
+        rows(&app)
+    );
+    let list = list_of(&mut app, entity);
+    assert_eq!(list_cursor(&app, list), Some(&Line::from(CURSOR)));
+}
+
+#[test]
+fn look_given_to_a_live_picker_reaches_its_list() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let list = list_of(&mut app, entity);
+    let stripe = Style::new().bg(Color::Blue);
+    app.world_mut().entity_mut(entity).insert((
+        ListBoxStripe(stripe),
+        ListBoxSelectionMarker,
+        ListBoxCursor(Line::from(CURSOR)),
+    ));
+    app.update();
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(ListBoxCursor(Line::from("- ")));
+    app.update();
+
+    let world = app.world();
+    assert_eq!(
+        world.get::<ListBoxStripe>(list).map(|stripe| stripe.0),
+        Some(stripe)
+    );
+    assert!(world.get::<ListBoxSelectionMarker>(list).is_some());
+    assert_eq!(list_cursor(&app, list), Some(&Line::from("- ")));
+}
+
+#[test]
+fn a_picker_added_to_a_dressed_entity_dresses_its_list() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = app
+        .world_mut()
+        .spawn((
+            UiArea::Fixed(Rect::new(0, 0, support::COLS, support::ROWS)),
+            ListBoxCursor(Line::from(CURSOR)),
+        ))
+        .id();
+    app.update();
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(file_picker(dir.path()));
+    app.update();
+
+    let list = list_of(&mut app, entity);
+    assert_eq!(list_cursor(&app, list), Some(&Line::from(CURSOR)));
 }

@@ -16,16 +16,18 @@ use bevy_ecs::prelude::{
 use bevy_input_focus::tab_navigation::TabGroup;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Margin, Rect};
+use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea};
 use plurimus_crossterm::CrosstermPlugin;
 use plurimus_filepicker::{FilePicker, FilePickerPlugin, file_picker};
 use plurimus_term::{KeyCode, KeyKind, KeyMessage};
 use plurimus_ui::{ModalDismiss, ModalOpen, UiSystems, ValueChange};
-use plurimus_widgets::{Pane, pane};
+use plurimus_widgets::{ListBoxCursor, Pane, pane};
 
 const COLS: u16 = 60;
 const ROWS: u16 = 16;
 const TITLE: &str = " files ";
+const CURSOR: &str = "▸ ";
 const FRAME_TICK: Duration = Duration::from_millis(16);
 
 #[derive(Resource, Default)]
@@ -66,7 +68,12 @@ fn spawn(mut commands: Commands, mut focus: ResMut<InputFocus>) {
         ))
         .id();
     let picker = commands
-        .spawn((file_picker("."), UiArea::Fixed(Rect::ZERO), ChildOf(frame)))
+        .spawn((
+            file_picker("."),
+            ListBoxCursor(Line::from(CURSOR)),
+            UiArea::Fixed(Rect::ZERO),
+            ChildOf(frame),
+        ))
         .id();
     focus.set(picker, FocusCause::Navigated);
 }
