@@ -23,7 +23,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   does nothing at either.
 - With `FilePickerLook::accepts_new`, the filter is offered after the matches as
   a file to create, badged `new`, unless an entry already has that name; Enter
-  on it chooses the path, so a save dialog can be a picker.
+  on it chooses the path, so a save dialog can be a picker. With exactly one
+  extension in `FilePickerLook::extensions`, a name typed without one is offered
+  and checked with it: `copy` offers `copy.toml`, and offers nothing beside an
+  existing `copy.toml`. A typed extension is kept as typed.
 - `FilePickerDecorator` on a picker maps each file's path to a `RowDecoration`:
   a line drawn at the right of the row and a style laid over it, above the dim
   of a hidden file. It runs once per file each time a directory is read, never

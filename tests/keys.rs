@@ -236,6 +236,10 @@ fn a_click_moves_the_cursor_and_a_double_click_chooses() {
     assert_eq!(chosen(&app), [(entity, dir.path().join("a.txt"))]);
 }
 
+fn has_new(app: &App) -> bool {
+    rows(app).iter().any(|row| row.ends_with("new"))
+}
+
 fn accept_new(app: &mut App, entity: Entity) {
     app.world_mut()
         .entity_mut(entity)
@@ -287,11 +291,7 @@ fn an_exact_existing_name_offers_no_typed_row() {
     type_text(&mut app, "b.txt");
 
     assert_eq!(rows(&app)[1], "> b.txt");
-    assert!(
-        !rows(&app).iter().any(|row| row.ends_with("new")),
-        "{:?}",
-        rows(&app)
-    );
+    assert!(!has_new(&app), "{:?}", rows(&app));
 }
 
 #[test]
@@ -321,12 +321,13 @@ fn a_typed_name_survives_the_extension_filter() {
 
     assert!(rows(&app)[1].ends_with("new"), "{:?}", rows(&app));
     press_key(&mut app, KeyCode::Enter);
-    assert_eq!(chosen(&app), [(entity, dir.path().join("notes"))]);
+    assert_eq!(chosen(&app), [(entity, dir.path().join("notes.toml"))]);
 }
 
 #[test]
-fn a_name_kept_off_the_list_is_not_offered_as_new() {
+fn a_typed_name_beside_its_listed_file_is_not_new() {
     let dir = scratch();
+    std::fs::write(dir.path().join("copy.toml"), "").unwrap();
     let mut app = logged_app();
     let entity = spawn_picker(&mut app, dir.path());
     app.world_mut().entity_mut(entity).insert(
@@ -335,12 +336,57 @@ fn a_name_kept_off_the_list_is_not_offered_as_new() {
             .with_extensions(["toml"]),
     );
     app.update();
-    let has_new = |app: &App| rows(app).iter().any(|row| row.ends_with("new"));
+    type_text(&mut app, "copy");
+
+    assert!(!has_new(&app), "{:?}", rows(&app));
+    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(chosen(&app), [(entity, dir.path().join("copy.toml"))]);
+}
+
+#[test]
+fn only_one_listed_extension_is_appended_and_only_to_a_bare_name() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let look = FilePickerLook::default().with_accepts_new(true);
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(look.clone().with_extensions(["toml"]));
+    set_path(&mut app, entity, "notes.md");
+    press_key(&mut app, KeyCode::Enter);
+
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(look.with_extensions(["toml", "txt"]));
+    set_path(&mut app, entity, "notes");
+    press_key(&mut app, KeyCode::Enter);
+
+    assert_eq!(
+        chosen(&app),
+        [
+            (entity, dir.path().join("notes.md")),
+            (entity, dir.path().join("notes"))
+        ]
+    );
+}
+
+#[test]
+fn a_name_kept_off_the_list_is_not_offered_as_new() {
+    let dir = scratch();
+    std::fs::write(dir.path().join(".secret.toml"), "").unwrap();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    app.world_mut().entity_mut(entity).insert(
+        FilePickerLook::default()
+            .with_accepts_new(true)
+            .with_extensions(["toml"]),
+    );
+    app.update();
 
     type_text(&mut app, "b.txt");
     assert!(!has_new(&app), "filtered out by extension, still exists");
 
-    set_path(&mut app, entity, ".hidden");
+    set_path(&mut app, entity, ".secret");
     assert!(!has_new(&app), "hidden, still exists");
 
     set_path(&mut app, entity, "..");

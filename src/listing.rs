@@ -170,10 +170,10 @@ pub(crate) fn rebuild_rows(
             (entry, UNDECORATED)
         });
         let ranked = ranked(parent.iter().chain(&listing.entries), filter, &look);
-        let is_new = look.accepts_new && is_creatable(filter, &listing.entries);
+        let typed = typed_name(filter, &look, &listing.entries);
         let mut cursor = spawn_rows(&mut commands, list.0, ranked, lit.0);
-        if is_new {
-            cursor.get_or_insert(spawn_typed_row(&mut commands, list.0, filter));
+        if let Some(name) = typed {
+            cursor.get_or_insert(spawn_typed_row(&mut commands, list.0, name));
         }
         if cursor.is_none() {
             commands.spawn((list_item(NO_MATCH), UiStyle(DIM), ChildOf(list.0)));
@@ -211,23 +211,38 @@ fn spawn_rows(
     cursor.or(first)
 }
 
-// Against every entry read, not the rows shown: a name a hidden entry or
-// the extension filter keeps off the list still exists.
-fn is_creatable(filter: &str, entries: &[(Entry, RowDecoration)]) -> bool {
-    Path::new(filter).file_name().is_some()
-        && !entries.iter().any(|(entry, _)| entry.name == filter)
+/// The file the filter would create, with the one listed extension when it
+/// names none; `None` for `.`, `..`, or a name any entry read has, shown or
+/// not, since a hidden or filtered-out file still exists.
+fn typed_name(
+    filter: &str,
+    look: &FilePickerLook,
+    entries: &[(Entry, RowDecoration)],
+) -> Option<String> {
+    if !look.accepts_new {
+        return None;
+    }
+    let path = Path::new(filter);
+    path.file_name()?;
+    let name = match look.extensions.as_slice() {
+        [extension] if path.extension().is_none() => format!("{filter}.{extension}"),
+        _ => filter.to_owned(),
+    };
+    let is_taken = entries.iter().any(|(entry, _)| entry.name == name);
+    (!is_taken).then_some(name)
 }
 
 /// The filter itself as a file to create, after the entries so the cursor
 /// still opens on the best existing match.
-fn spawn_typed_row(commands: &mut Commands, list: Entity, name: &str) -> Entity {
+fn spawn_typed_row(commands: &mut Commands, list: Entity, name: String) -> Entity {
+    let badge = ListItemTrailing(Line::styled(NEW_BADGE, DIM));
+    let label = list_item(name.clone());
     let entry = Entry {
-        name: name.to_owned(),
+        name,
         is_dir: false,
     };
-    let badge = ListItemTrailing(Line::styled(NEW_BADGE, DIM));
     commands
-        .spawn((list_item(name.to_owned()), badge, ChildOf(list)))
+        .spawn((label, badge, ChildOf(list)))
         .insert_if(UiStyle(DIM), || entry.is_hidden())
         .insert(entry)
         .id()

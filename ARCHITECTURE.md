@@ -34,12 +34,14 @@ A picker is two entities the crate manages and rows it respawns:
   parent, `..` is a directory `Entry` ahead of the entries read, drawn `../`,
   matched, lit and filtered like the rest and never hidden; the cursor opens on
   the first row after it. With `FilePickerLook::accepts_new`, a filter that
-  names a file rather than `.` or `..`, and no entry read with that exact name,
-  one more row follows the matches: the filter as an `Entry` that is not a
-  directory, badged `new` through `ListItemTrailing`, so `Enter` and `Complete`
-  treat it as any file. A file's row carries its decoration's trailing line as
-  `ListItemTrailing` and its style, over the hidden dim, as `UiStyle`. A listing
-  with nothing left has one dim "no match" row with no `Entry` and no cursor.
+  names a file rather than `.` or `..` is a typed name, the one listed extension
+  appended when `extensions` has exactly one and the filter has none. With no
+  entry read of that exact name, one more row follows the matches: the typed
+  name as an `Entry` that is not a directory, badged `new` through
+  `ListItemTrailing`, so `Enter` and `Complete` treat it as any file. A file's
+  row carries its decoration's trailing line as `ListItemTrailing` and its
+  style, over the hidden dim, as `UiStyle`. A listing with nothing left has one
+  dim "no match" row with no `Entry` and no cursor.
 
 ## Path model
 
