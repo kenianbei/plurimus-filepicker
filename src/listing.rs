@@ -40,7 +40,7 @@ impl Entry {
 /// The entries read for the directory the field last named.
 #[derive(Component, Debug, Default)]
 pub(crate) struct Listing {
-    pub directory: PathBuf,
+    pub directory: Option<PathBuf>,
     pub entries: Vec<Entry>,
     /// The directory is neither a root nor the floor.
     pub has_parent: bool,
@@ -73,16 +73,17 @@ pub(crate) fn relist(mut pickers: Query<(Mut<FilePicker>, Ref<FilePickerFloor>, 
             picker.set_path(text);
             directory.clone_from(floor);
         }
-        if listing.directory == directory && !floor_changed {
+        let is_read = listing.directory.as_ref() == Some(&directory);
+        if is_read && !floor_changed {
             continue;
         }
         let is_climbable = floor.as_ref() != Some(&directory) && has_parent(&directory);
         if listing.has_parent != is_climbable {
             listing.has_parent = is_climbable;
         }
-        if listing.directory != directory {
+        if !is_read {
             listing.entries = read_entries(&or_current(directory.clone()));
-            listing.directory = directory;
+            listing.directory = Some(directory);
         }
     }
 }

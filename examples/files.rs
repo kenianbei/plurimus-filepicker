@@ -1,7 +1,7 @@
 //! A file picker over the current directory in a modal pane. Type to
-//! filter, Up/Down move, Enter descends or chooses, Left or Backspace on an
-//! empty filter climbs, Tab completes, Ctrl+H shows hidden entries, Esc or
-//! ctrl-c quits. The chosen path is printed on exit.
+//! filter, Up/Down move, Enter descends or chooses, Left climbs, Tab
+//! completes, Ctrl+. shows hidden entries, Esc or ctrl-c quits. The chosen
+//! path is printed on exit.
 
 use std::path::PathBuf;
 use std::time::Duration;

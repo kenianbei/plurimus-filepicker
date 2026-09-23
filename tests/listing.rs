@@ -31,6 +31,15 @@ fn lists_directories_first_then_names_case_insensitively_without_hidden() {
 }
 
 #[test]
+fn a_picker_over_the_working_directory_lists_it() {
+    let mut app = app();
+    spawn_picker(&mut app, std::path::Path::new("."));
+
+    let texts = row_texts(&app);
+    assert!(texts.iter().any(|row| row.starts_with("src/")), "{texts:?}");
+}
+
+#[test]
 fn look_hidden_lists_dot_entries_dimmed() {
     let dir = scratch();
     let mut app = app();
