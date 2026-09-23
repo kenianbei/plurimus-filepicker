@@ -2,8 +2,13 @@
 
 mod support;
 
+use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use bevy_ecs::hierarchy::Children;
-use plurimus_filepicker::{FilePickerFloor, FilePickerLook};
+use plurimus_core::ratatui_core::style::{Color, Style};
+use plurimus_filepicker::{FilePickerDecorator, FilePickerFloor, FilePickerLook, RowDecoration};
 use plurimus_ui::InteractionDisabled;
 use support::{
     app, composed_styled_frame, cursor, focus, focused, list_of, picker, rows, scratch, set_path,
@@ -238,4 +243,71 @@ fn field_shows_prompt_text_and_caret_while_focused() {
         &caret_row[3..4],
         "the caret cell is styled unlike the text before it: {styled}"
     );
+}
+
+const BADGE: &str = "X";
+
+#[test]
+fn a_decorator_badges_files_and_leaves_directories_alone() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let badge = FilePickerDecorator(Box::new(|_: &Path| {
+        RowDecoration::default().with_trailing(BADGE)
+    }));
+    app.world_mut().entity_mut(entity).insert(badge);
+    app.update();
+
+    let texts = row_texts(&app);
+    let badged: Vec<&str> = texts
+        .iter()
+        .filter(|row| row.ends_with(BADGE))
+        .map(|row| row.split_whitespace().next().unwrap_or_default())
+        .collect();
+    assert_eq!(badged, ["a.txt", "b.txt"], "{texts:?}");
+}
+
+#[test]
+fn a_decoration_style_lays_over_the_hidden_dim() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let red = FilePickerDecorator(Box::new(|_: &Path| {
+        RowDecoration::default().with_style(Style::new().fg(Color::Red))
+    }));
+    app.world_mut()
+        .entity_mut(entity)
+        .insert((red, FilePickerLook::default().with_hidden(true)));
+    app.update();
+
+    let styled = composed_styled_frame(&app);
+    assert!(
+        styled
+            .lines()
+            .any(|line| line.contains("fg:Some(Red)") && line.contains("DIM")),
+        "{styled}"
+    );
+}
+
+#[test]
+fn a_decorator_runs_once_per_directory_read() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&calls);
+    let decorator = FilePickerDecorator(Box::new(move |_: &Path| {
+        counted.fetch_add(1, Ordering::Relaxed);
+        RowDecoration::default()
+    }));
+    app.world_mut().entity_mut(entity).insert(decorator);
+    app.update();
+    assert_eq!(calls.load(Ordering::Relaxed), 3, "three files, hidden too");
+
+    set_path(&mut app, entity, "a");
+    set_path(&mut app, entity, "ab");
+    assert_eq!(calls.load(Ordering::Relaxed), 3, "filtering reads nothing");
+
+    set_path(&mut app, entity, "sub/");
+    assert_eq!(calls.load(Ordering::Relaxed), 4, "sub/ holds one file");
 }

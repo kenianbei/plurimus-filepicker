@@ -177,6 +177,42 @@ impl Default for FilePickerMatchStyle {
     }
 }
 
+/// Decorates each file of a directory as it is read, from the file's path.
+///
+/// Runs inside the read, once per file per directory read and never per
+/// keystroke; a slow decorator is a slow directory change. Directories,
+/// `..`, and the typed new row are not decorated. Inserting or replacing it
+/// reads the directory again; removing it leaves the rows decorated until
+/// the next read.
+#[derive(Component)]
+pub struct FilePickerDecorator(pub Box<dyn Fn(&Path) -> RowDecoration + Send + Sync>);
+
+/// What a [`FilePickerDecorator`] adds to one file's row.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RowDecoration {
+    /// Drawn right-aligned on the row.
+    pub trailing: Option<Line<'static>>,
+    /// Laid over the row, above the dim of a hidden entry.
+    pub style: Style,
+}
+
+impl RowDecoration {
+    /// With this line drawn right-aligned on the row.
+    #[must_use]
+    pub fn with_trailing(mut self, trailing: impl Into<Line<'static>>) -> Self {
+        self.trailing = Some(trailing.into());
+        self
+    }
+
+    /// With this style laid over the row.
+    #[must_use]
+    pub const fn with_style(mut self, style: Style) -> Self {
+        self.style = style;
+        self
+    }
+}
+
 /// A file picker opened on `base`, drawn like any other widget.
 ///
 /// Its list is a child spawned on the next frame; focusing the picker lands

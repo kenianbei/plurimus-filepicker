@@ -18,7 +18,10 @@ mod picker;
 mod style;
 
 pub use keys::{FilePickerAction, FilePickerKeys};
-pub use picker::{FilePicker, FilePickerFloor, FilePickerLook, FilePickerMatchStyle, file_picker};
+pub use picker::{
+    FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, FilePickerMatchStyle,
+    RowDecoration, file_picker,
+};
 
 /// Installs the file picker's systems and observers.
 ///

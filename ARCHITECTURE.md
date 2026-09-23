@@ -18,9 +18,11 @@ A picker is two entities the crate manages and rows it respawns:
   text is the whole state. The root requires `Hovered`, `StylistCache`,
   `FilePickerKeys`, `TextInputKeys`, `FilePickerLook`, `FilePickerFloor`,
   `FilePickerMatchStyle`, `ComputedWidgetArea`, and two private components:
-  `Listing`, the entries read for the directory last named and whether that
-  directory has a parent to climb to, and `BuiltRows`, the filter the rows were
-  last built for. The app gives the root its `UiArea`.
+  `Listing`, the entries read for the directory last named, each paired with its
+  decoration, and whether that directory has a parent to climb to, and
+  `BuiltRows`, the filter the rows were last built for. The app gives the root
+  its `UiArea`, and may add `FilePickerDecorator`, a function from a file's path
+  to a `RowDecoration`.
 - **The list**, a child `ListBox` the crate spawns on the frame after the root
   appears, with `ListBoxKeys` pruned to Up, Down, PageUp and PageDown, a
   `ScrollArea`, and the `TabIndex` that `listbox()` carries. The root records it
@@ -35,8 +37,9 @@ A picker is two entities the crate manages and rows it respawns:
   names a file rather than `.` or `..`, and no entry read with that exact name,
   one more row follows the matches: the filter as an `Entry` that is not a
   directory, badged `new` through `ListItemTrailing`, so `Enter` and `Complete`
-  treat it as any file. A listing with nothing left has one dim "no match" row
-  with no `Entry` and no cursor.
+  treat it as any file. A file's row carries its decoration's trailing line as
+  `ListItemTrailing` and its style, over the hidden dim, as `UiStyle`. A listing
+  with nothing left has one dim "no match" row with no `Entry` and no cursor.
 
 ## Path model
 
@@ -64,24 +67,27 @@ After `InputFocusSystems::Dispatch` and `UiSystems::Areas`, before
 `WidgetSystems::Layout`, chained, so a key that edited the field lands the same
 frame ahead of the engine's row passes:
 
-1. `relist` runs when the picker or its floor changed. It resolves the floor
-   against the base the way the field is resolved, writes the field back to the
-   floor when the directory falls outside it, and stops there when the directory
-   is the one last read and the floor did not change. Otherwise it records
-   whether the directory has a parent, `has_parent` and not the floor, and reads
-   the directory with `std::fs::read_dir` when it differs from the one last
-   read. Entries sort directories first, then names case-insensitively; a
-   directory that cannot be read has no entries. An entry's kind comes from the
-   directory read, with a stat only for symlinks.
+1. `relist` runs when the picker, its floor, or its decorator changed; a changed
+   decorator marks the directory unread. It resolves the floor against the base
+   the way the field is resolved, writes the field back to the floor when the
+   directory falls outside it, and stops there when the directory is the one
+   last read and the floor did not change. Otherwise it records whether the
+   directory has a parent, `has_parent` and not the floor, and reads the
+   directory with `std::fs::read_dir` when it differs from the one last read,
+   passing each file's path to the decorator when there is one. Entries sort
+   directories first, then names case-insensitively; a directory that cannot be
+   read has no entries. An entry's kind comes from the directory read, with a
+   stat only for symlinks.
 2. `rebuild_rows` runs when the listing, look, match style, or filter changed.
    It despawns the old rows last child first, puts `..` ahead of the entries
    when the listing has a parent, keeps entries the look admits (hidden ones
    only with `hidden`, files only with an extension in `extensions` when that
    list is set, directories always), ranks them through `matching::find_match`
    stably on score, spawns a row per hit with the matched characters styled and
-   a separator suffix on a directory, dims hidden rows, appends the typed row
-   when the look accepts a new name, and writes `ActiveDescendant` to the first
-   row that is not `..`, or to the first row.
+   a separator suffix on a directory, dims hidden rows, lays a file's decoration
+   over its row, appends the typed row when the look accepts a new name, and
+   writes `ActiveDescendant` to the first row that is not `..`, or to the first
+   row.
 3. `place_file_picker_parts` runs when the root's area, order, or list changed.
    It cuts the root's area with `layout::split_area` into the one-row field and
    the rest, and writes the list's `ComputedWidgetArea`, `UiArea::Fixed` through

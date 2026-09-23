@@ -24,6 +24,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - With `FilePickerLook::accepts_new`, the filter is offered after the matches as
   a file to create, badged `new`, unless an entry already has that name; Enter
   on it chooses the path, so a save dialog can be a picker.
+- `FilePickerDecorator` on a picker maps each file's path to a `RowDecoration`:
+  a line drawn at the right of the row and a style laid over it, above the dim
+  of a hidden file. It runs once per file each time a directory is read, never
+  per keystroke, and inserting or replacing it reads the directory again.
+  Directories, `..` and the typed new row are not decorated.
 - Keys as data in `FilePickerKeys`: Enter descends or chooses, Tab and Right
   complete the cursor's entry, Left climbs, Ctrl+. toggles hidden entries,
   Escape triggers `ModalDismiss`. Unbound keys edit the field; Up, Down, PageUp
