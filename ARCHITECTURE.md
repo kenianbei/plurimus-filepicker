@@ -48,7 +48,7 @@ A picker is two entities the crate manages and rows it respawns:
 
 ## Path model
 
-`path.rs` is pure. `split_at_separator` cuts the field at its last separator,
+`path.rs` is lexical but for `~`. `split_at_separator` cuts the field at its last separator,
 either separator on Windows. `field_directory` expands a leading `~` through
 `std::env::home_dir`, joins the directory text to the base when relative, and
 normalizes lexically: `.` dropped, `..` popping the segment before it, held at a

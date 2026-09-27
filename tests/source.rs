@@ -76,7 +76,7 @@ fn a_source_without_a_working_directory_still_climbs_to_its_root() {
 }
 
 #[test]
-fn a_directory_the_source_lacks_lists_nothing() {
+fn a_directory_the_source_lacks_lists_only_its_parent() {
     let mut app = support::app();
     let entity = spawn_over(&mut app, "/plans", ());
 
