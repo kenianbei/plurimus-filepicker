@@ -2,7 +2,7 @@
 name = "plurimus_filepicker"
 description = "A file picker widget for plurimus: a path field over a filtered directory listing."
 documentation = "https://docs.rs/plurimus_filepicker"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Norman Kerr"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
