@@ -8,15 +8,15 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use bevy_app::App;
+use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{On, ResMut, Resource};
-use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_filepicker::{
-    DirectorySource, FilePickerDecorator, FilePickerSource, RowDecoration, SourceEntry, file_picker,
+    DirectorySource, FilePickerDecorator, FilePickerSource, RowDecoration, SourceEntry,
 };
 use plurimus_term::KeyCode;
-use plurimus_ui::{UiArea, ValueChange};
-use support::{COLS, ROWS, focus, picker, press_key, rows, set_path, type_text};
+use plurimus_ui::ValueChange;
+use support::{picker, press_key, row_texts, set_path, spawn_picker_with, type_text};
 
 /// Directories and their entries, with no working directory.
 struct Workspace(BTreeMap<PathBuf, Vec<SourceEntry>>);
@@ -53,29 +53,8 @@ fn workspace() -> FilePickerSource {
 #[derive(Resource, Default)]
 struct Chosen(Vec<PathBuf>);
 
-fn spawn_over(app: &mut App, base: &str, extra: impl bevy_ecs::bundle::Bundle) -> Entity {
-    let picker = app
-        .world_mut()
-        .spawn((
-            file_picker(base),
-            UiArea::Fixed(Rect::new(0, 0, COLS, ROWS)),
-            workspace(),
-            extra,
-        ))
-        .id();
-    focus(app, picker);
-    app.update();
-    picker
-}
-
-/// The list's rows without the two-cell cursor gutter the engine draws.
-fn row_texts(app: &App) -> Vec<String> {
-    rows(app)
-        .into_iter()
-        .skip(1)
-        .filter(|row| !row.is_empty())
-        .map(|row| row.chars().skip(2).collect())
-        .collect()
+fn spawn_over(app: &mut App, base: &str, extra: impl Bundle) -> Entity {
+    spawn_picker_with(app, Path::new(base), (workspace(), extra))
 }
 
 #[test]
