@@ -62,7 +62,6 @@ impl SourceEntry {
 #[derive(Component, Clone)]
 pub struct FilePickerSource(pub Arc<dyn DirectorySource>);
 
-/// The filesystem, through `std::fs`.
 pub(crate) struct DiskSource;
 
 impl DirectorySource for DiskSource {
