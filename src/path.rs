@@ -22,9 +22,13 @@ pub(crate) fn resolve(path: &Path, base: &Path) -> PathBuf {
 }
 
 /// Whether `directory` has a parent to climb to, judged on its absolute
-/// form so a `..` chain below a relative base stops at the root.
-pub(crate) fn has_parent(directory: &Path) -> bool {
-    std::env::current_dir().is_ok_and(|cwd| resolve(directory, &cwd).parent().is_some())
+/// form so a `..` chain below a relative base stops at the root. A relative
+/// directory with no working directory to resolve it against has none.
+pub(crate) fn has_parent(directory: &Path, cwd: Option<PathBuf>) -> bool {
+    if directory.is_absolute() {
+        return directory.parent().is_some();
+    }
+    cwd.is_some_and(|cwd| resolve(directory, &cwd).parent().is_some())
 }
 
 /// `.` for the empty path [`resolve`] hands back, `path` otherwise.
@@ -161,9 +165,17 @@ mod tests {
 
     #[test]
     fn has_parent_is_judged_on_the_absolute_form() {
-        assert!(!has_parent(Path::new("/")));
-        assert!(has_parent(Path::new("/x")));
-        assert!(has_parent(Path::new("")));
+        let cwd = || std::env::current_dir().ok();
+        assert!(!has_parent(Path::new("/"), cwd()));
+        assert!(has_parent(Path::new("/x"), cwd()));
+        assert!(has_parent(Path::new(""), cwd()));
+    }
+
+    #[test]
+    fn has_parent_needs_no_working_directory_for_an_absolute_path() {
+        assert!(has_parent(Path::new("/x"), None));
+        assert!(!has_parent(Path::new("/"), None));
+        assert!(!has_parent(Path::new("x"), None));
     }
 
     #[test]

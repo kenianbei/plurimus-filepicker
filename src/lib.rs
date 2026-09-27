@@ -15,6 +15,7 @@ mod matching;
 mod parts;
 mod path;
 mod picker;
+mod source;
 mod style;
 
 pub use keys::{FilePickerAction, FilePickerKeys};
@@ -22,6 +23,7 @@ pub use picker::{
     FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, FilePickerMatchStyle,
     RowDecoration, file_picker,
 };
+pub use source::{DirectorySource, FilePickerSource, SourceEntry};
 
 /// Installs the file picker's systems and observers.
 ///
