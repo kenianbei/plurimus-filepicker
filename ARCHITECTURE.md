@@ -48,12 +48,12 @@ A picker is two entities the crate manages and rows it respawns:
 
 ## Path model
 
-`path.rs` is lexical but for `~`. `split_at_separator` cuts the field at its last separator,
-either separator on Windows. `field_directory` expands a leading `~` through
-`std::env::home_dir`, joins the directory text to the base when relative, and
-normalizes lexically: `.` dropped, `..` popping the segment before it, held at a
-root, accumulating below a relative start. The working directory resolves to the
-empty path, which keeps prefix checks against a floor honest;
+`path.rs` is lexical but for `~`. `split_at_separator` cuts the field at its
+last separator, either separator on Windows. `field_directory` expands a leading
+`~` through `std::env::home_dir`, joins the directory text to the base when
+relative, and normalizes lexically: `.` dropped, `..` popping the segment before
+it, held at a root, accumulating below a relative start. The working directory
+resolves to the empty path, which keeps prefix checks against a floor honest;
 `FilePicker::directory` names it `.`. `has_parent` judges a directory on its
 absolute form: an absolute directory as it is, a relative one resolved against
 the working directory it is handed, so a `..` chain below a relative base ends
