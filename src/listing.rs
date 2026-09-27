@@ -16,6 +16,7 @@ use crate::picker::{
     FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, FilePickerMatchStyle,
     RowDecoration,
 };
+use crate::source::{DirectorySource, DiskSource, FilePickerSource};
 
 const HIDDEN_PREFIX: char = '.';
 const PARENT: &str = "..";
@@ -59,24 +60,27 @@ pub(crate) struct BuiltRows {
     filter: String,
 }
 
-/// Reads the directory whenever the field names a new one, clamping the
-/// field to the floor first. The floor resolves against the base the way
-/// the field does, so a relative floor means what a relative field means.
+/// Reads the directory from the picker's source, or the disk, whenever the
+/// field names a new one, clamping the field to the floor first. The floor
+/// resolves against the base the way the field does, so a relative floor
+/// means what a relative field means.
 pub(crate) fn relist(
     mut pickers: Query<(
         Mut<FilePicker>,
         Ref<FilePickerFloor>,
         Option<Ref<FilePickerDecorator>>,
+        Option<Ref<FilePickerSource>>,
         &mut Listing,
     )>,
 ) {
-    for (mut picker, floor, decorator, mut listing) in &mut pickers {
+    for (mut picker, floor, decorator, source, mut listing) in &mut pickers {
         let floor_changed = floor.is_changed();
-        let decorator_changed = decorator.as_ref().is_some_and(DetectChanges::is_changed);
-        if !picker.is_changed() && !floor_changed && !decorator_changed {
+        let is_reread = decorator.as_ref().is_some_and(DetectChanges::is_changed)
+            || source.as_ref().is_some_and(DetectChanges::is_changed);
+        if !picker.is_changed() && !floor_changed && !is_reread {
             continue;
         }
-        if decorator_changed {
+        if is_reread {
             listing.directory = None;
         }
         let floor = floor
@@ -95,38 +99,40 @@ pub(crate) fn relist(
         if is_read && !floor_changed {
             continue;
         }
-        let is_climbable = floor.as_ref() != Some(&directory) && has_parent(&directory);
+        let source: &dyn DirectorySource =
+            source.as_deref().map_or(&DiskSource, |source| &*source.0);
+        let is_climbable =
+            floor.as_ref() != Some(&directory) && has_parent(&directory, source.current_dir());
         if listing.has_parent != is_climbable {
             listing.has_parent = is_climbable;
         }
         if !is_read {
-            listing.entries = read_entries(&or_current(directory.clone()), decorator.as_deref());
+            listing.entries =
+                read_entries(source, &or_current(directory.clone()), decorator.as_deref());
             listing.directory = Some(directory);
         }
     }
 }
 
-// `file_type` is free on most filesystems; only a symlink costs a stat, so
-// a linked directory can be entered.
 fn read_entries(
+    source: &dyn DirectorySource,
     directory: &Path,
     decorator: Option<&FilePickerDecorator>,
 ) -> Vec<(Entry, RowDecoration)> {
-    let Ok(read) = std::fs::read_dir(directory) else {
-        return Vec::new();
-    };
-    let mut entries: Vec<(Entry, RowDecoration)> = read
-        .filter_map(Result::ok)
+    let mut entries: Vec<(Entry, RowDecoration)> = source
+        .list(directory)
+        .unwrap_or_default()
+        .into_iter()
         .map(|entry| {
-            let is_dir = entry
-                .file_type()
-                .is_ok_and(|kind| kind.is_dir() || (kind.is_symlink() && entry.path().is_dir()));
             let decoration = decorator
-                .filter(|_| !is_dir)
-                .map(|decorator| (decorator.0)(&entry.path()))
+                .filter(|_| !entry.is_dir)
+                .map(|decorator| (decorator.0)(&directory.join(&entry.name)))
                 .unwrap_or_default();
-            let name = entry.file_name().to_string_lossy().into_owned();
-            (Entry { name, is_dir }, decoration)
+            let entry = Entry {
+                name: entry.name,
+                is_dir: entry.is_dir,
+            };
+            (entry, decoration)
         })
         .collect();
     entries.sort_by_cached_key(|(entry, _)| (!entry.is_dir, entry.name.to_lowercase()));

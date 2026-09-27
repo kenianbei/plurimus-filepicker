@@ -16,19 +16,9 @@ use plurimus_filepicker::{
 use plurimus_ui::{InteractionDisabled, UiArea};
 use plurimus_widgets::{ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe};
 use support::{
-    app, composed_styled_frame, cursor, focus, focused, list_of, picker, rows, scratch, set_path,
-    spawn_picker,
+    app, composed_styled_frame, cursor, focus, focused, list_of, picker, row_texts, rows, scratch,
+    set_path, spawn_picker,
 };
-
-/// The list's rows without the two-cell cursor gutter the engine draws.
-fn row_texts(app: &bevy_app::App) -> Vec<String> {
-    rows(app)
-        .into_iter()
-        .skip(1)
-        .filter(|row| !row.is_empty())
-        .map(|row| row.chars().skip(2).collect())
-        .collect()
-}
 
 #[test]
 fn lists_directories_first_then_names_case_insensitively_without_hidden() {

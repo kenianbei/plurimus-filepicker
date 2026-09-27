@@ -8,6 +8,7 @@ use core::fmt::Write as _;
 use std::path::Path;
 
 use bevy_app::App;
+use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::buffer::Buffer;
@@ -34,11 +35,17 @@ pub fn app() -> App {
 
 /// A picker over `base` filling the terminal, focused, its list spawned.
 pub fn spawn_picker(app: &mut App, base: &Path) -> Entity {
+    spawn_picker_with(app, base, ())
+}
+
+/// [`spawn_picker`] with `extra` on the picker from its first frame.
+pub fn spawn_picker_with(app: &mut App, base: &Path, extra: impl Bundle) -> Entity {
     let picker = app
         .world_mut()
         .spawn((
             file_picker(base),
             UiArea::Fixed(Rect::new(0, 0, COLS, ROWS)),
+            extra,
         ))
         .id();
     focus(app, picker);
@@ -153,6 +160,16 @@ pub fn rows(app: &App) -> Vec<String> {
     composed_frame(app)
         .lines()
         .map(|line| line.trim_end().to_owned())
+        .collect()
+}
+
+/// The list's rows without the two-cell cursor gutter the engine draws.
+pub fn row_texts(app: &App) -> Vec<String> {
+    rows(app)
+        .into_iter()
+        .skip(1)
+        .filter(|row| !row.is_empty())
+        .map(|row| row.chars().skip(2).collect())
         .collect()
 }
 
