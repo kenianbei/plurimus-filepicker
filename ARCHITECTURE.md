@@ -22,7 +22,7 @@ A picker is two entities the crate manages and rows it respawns:
   decoration, and whether that directory has a parent to climb to, and
   `BuiltRows`, the filter the rows were last built for. The app gives the root
   its `UiArea`, and may add `FilePickerDecorator`, a function from a file's path
-  to a `RowDecoration`.
+  to a `RowDecoration`, and `FilePickerSource`, what the picker lists.
 - **The list**, a child `ListBox` the crate spawns in the first `PreUpdate`
   after the root appears, with `ListBoxKeys` pruned to Up, Down, PageUp and
   PageDown, a `ScrollArea`, and the `TabIndex` that `listbox()` carries. The
@@ -55,11 +55,26 @@ normalizes lexically: `.` dropped, `..` popping the segment before it, held at a
 root, accumulating below a relative start. The working directory resolves to the
 empty path, which keeps prefix checks against a floor honest;
 `FilePicker::directory` names it `.`. `has_parent` judges a directory on its
-absolute form, resolved against the working directory, so a `..` chain below a
-relative base ends at the real root. `directory_text` is the inverse for writing
-a directory back into the field: relative beneath the base, climbing with `..`
-when both are relative, absolute otherwise, always with a trailing separator.
-The floor check is lexical; a symlink below the floor can lead out.
+absolute form: an absolute directory as it is, a relative one resolved against
+the working directory it is handed, so a `..` chain below a relative base ends
+at the real root; with none, a relative directory has no parent.
+`directory_text` is the inverse for writing a directory back into the field:
+relative beneath the base, climbing with `..` when both are relative, absolute
+otherwise, always with a trailing separator. The floor check is lexical; a
+symlink below the floor can lead out.
+
+## Sources
+
+`source.rs` holds what a picker lists. `DirectorySource` is a trait with `list`,
+a directory's `SourceEntry`s in any order as an `io::Result`, and `current_dir`,
+defaulting to `std::env::current_dir`, which `has_parent` resolves a relative
+directory against. `SourceEntry` is `#[non_exhaustive]`, a name and whether it
+is a directory, built through `SourceEntry::file` and `SourceEntry::directory`.
+`FilePickerSource(Arc<dyn DirectorySource>)` on the root is the picker's source;
+without it, the private `DiskSource` reads with `std::fs::read_dir`, an entry's
+kind from the directory read with a stat only for symlinks. `~` is not the
+source's: it expands through `std::env::home_dir` in the path model, which
+`FilePicker::directory` shares.
 
 ## Frame
 
@@ -73,17 +88,19 @@ After `InputFocusSystems::Dispatch` and `UiSystems::Areas`, before
 `WidgetSystems::Layout`, chained, so a key that edited the field lands the same
 frame ahead of the engine's row passes:
 
-1. `relist` runs when the picker, its floor, or its decorator changed; a changed
-   decorator marks the directory unread. It resolves the floor against the base
-   the way the field is resolved, writes the field back to the floor when the
-   directory falls outside it, and stops there when the directory is the one
-   last read and the floor did not change. Otherwise it records whether the
-   directory has a parent, `has_parent` and not the floor, and reads the
-   directory with `std::fs::read_dir` when it differs from the one last read,
-   passing each file's path to the decorator when there is one. Entries sort
-   directories first, then names case-insensitively; a directory that cannot be
-   read has no entries. An entry's kind comes from the directory read, with a
-   stat only for symlinks.
+1. `relist` runs when the picker, its floor, its decorator, or its source
+   changed; a changed decorator or source marks the directory unread, and a
+   removed one goes unnoticed until the next read. It resolves the floor against
+   the base the way the field is resolved, writes the field back to the floor
+   when the directory falls outside it, and stops there when the directory is
+   the one last read and the floor did not change. Otherwise it records whether
+   the directory has a parent, `has_parent` over the source's `current_dir` and
+   not the floor, and lists the directory through the source, or `DiskSource`,
+   when it differs from the one last read. The source is handed the resolved
+   directory, `.` for the working directory, and the decorator, when there is
+   one, that directory joined with each file's name. Entries sort directories
+   first, then names case-insensitively; a directory the source cannot list has
+   no entries.
 2. `rebuild_rows` runs when the listing, look, match style, or filter changed.
    It despawns the old rows last child first, puts `..` ahead of the entries
    when the listing has a parent, keeps entries the look admits (hidden ones
@@ -139,4 +156,7 @@ Tests drive a full `App` headlessly: `CorePlugin` and `FilePickerPlugin`, a
 `TerminalCamera`, a `TerminalSize`, keys and mouse written as `plurimus_term`
 messages, and the composed frame read from the render sub-app.
 `tests/support/mod.rs` carries those helpers, copied from plurimus's unpublished
-`plurimus_test`, plus a scratch directory from `tempfile`.
+`plurimus_test`, plus a scratch directory from `tempfile` and
+`spawn_picker_with`, which spawns a picker with more components from its first
+frame. `tests/source.rs` lists an in-memory `DirectorySource` with no working
+directory; the `tempfile` tests are the disk's.

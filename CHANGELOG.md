@@ -8,6 +8,25 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `FilePickerSource` on a picker names what it lists: any `DirectorySource`,
+  whose `list` returns a directory's entries as `SourceEntry::file` and
+  `SourceEntry::directory`, so a picker can browse a virtual workspace, such as
+  one kept in a browser's storage, the way it browses the disk. The source is
+  handed the path the field names; the decorator and `ValueChange<PathBuf>` see
+  the source's paths. A source's `current_dir` resolves relative paths for the
+  `..` row, and a source without one still climbs absolute paths. Inserting or
+  replacing the source reads the directory again. A picker without one reads the
+  disk as before, and `~` is the process's home either way.
+
+### Fixed
+
+- An absolute directory lists `..` and Left climbs from it even where the
+  process has no working directory, as on `wasm32-unknown-unknown`.
+
+## [0.1.0] - 2026-09-23
+
+### Added
+
 - `FilePicker`, spawned through `file_picker(base)`: one path field over a
   filtered listing of the directory it names. Everything before the field's last
   separator is the directory, joined to the base when relative; everything after
