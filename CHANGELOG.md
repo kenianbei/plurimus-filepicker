@@ -11,6 +11,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Breaking:** the crate requires plurimus 0.8. An app moves to plurimus 0.8
   with it; one left on 0.7 resolves two copies of plurimus, and the picker's
   components do not match the app's.
+- A disabled picker's list no longer carries an `InteractionDisabled` copied
+  from the picker. The list is disabled as anything inside a disabled widget is
+  in plurimus 0.8, and carries `ComputedDisabled`; an app that read the marker
+  on the list reads that.
 
 ### Fixed
 
@@ -22,6 +26,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   showing. It opened scrolled past the cursor's row, with no row marked until a
   key was pressed. Showing a hidden picker therefore puts its list back at its
   cursor, not where the wheel last left it.
+- A picker inside a disabled widget takes no keys. With `InteractionDisabled` on
+  an ancestor and not on the picker itself, its list ignored the arrows but
+  typing still edited the field and Enter still chose.
 
 ## [0.1.1] - 2026-09-27
 
