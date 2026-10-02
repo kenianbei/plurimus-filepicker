@@ -6,18 +6,18 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use bevy_ecs::hierarchy::Children;
+use bevy_ecs::hierarchy::{ChildOf, Children};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_filepicker::{
     FilePickerDecorator, FilePickerFloor, FilePickerLook, RowDecoration, file_picker,
 };
-use plurimus_ui::{InteractionDisabled, UiArea};
+use plurimus_ui::{ComputedDisabled, InteractionDisabled, UiArea};
 use plurimus_widgets::{ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe};
 use support::{
     app, composed_styled_frame, cursor, focus, focused, list_of, picker, row_texts, rows, scratch,
-    set_path, spawn_picker,
+    set_path, spawn_picker, spawn_picker_with, type_text,
 };
 
 #[test]
@@ -201,13 +201,32 @@ fn disabling_the_picker_disables_its_list() {
         .entity_mut(entity)
         .insert(InteractionDisabled);
     app.update();
-    assert!(app.world().get::<InteractionDisabled>(list).is_some());
+    assert!(app.world().get::<ComputedDisabled>(list).is_some());
+    type_text(&mut app, "ab");
+    assert_eq!(picker(&app, entity).path(), "");
 
     app.world_mut()
         .entity_mut(entity)
         .remove::<InteractionDisabled>();
     app.update();
-    assert!(app.world().get::<InteractionDisabled>(list).is_none());
+    assert!(app.world().get::<ComputedDisabled>(list).is_none());
+    type_text(&mut app, "ab");
+    assert_eq!(picker(&app, entity).path(), "ab");
+}
+
+#[test]
+fn a_picker_under_a_disabled_ancestor_takes_no_keys() {
+    let dir = scratch();
+    let mut app = app();
+    let parent = app.world_mut().spawn(InteractionDisabled).id();
+    let entity = spawn_picker_with(&mut app, dir.path(), ChildOf(parent));
+    let list = list_of(&mut app, entity);
+    assert_eq!(focused(&app), Some(list));
+    assert!(app.world().get::<ComputedDisabled>(list).is_some());
+
+    type_text(&mut app, "ab");
+
+    assert_eq!(picker(&app, entity).path(), "");
 }
 
 #[test]

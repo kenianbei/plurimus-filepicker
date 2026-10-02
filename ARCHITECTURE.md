@@ -81,10 +81,9 @@ source's: it expands through `std::env::home_dir` in the path model, which
 ## Frame
 
 In `PreUpdate`, before `UiSystems::Areas` and focus dispatch, chained:
-`install_file_picker_list` on `Added<FilePicker>`, `mirror_disabled`, which
-copies the picker's own `InteractionDisabled` on and off the list,
-`mirror_look`, which copies the list's look components from the root on
-`Added<PickerList>` or a change, and `redirect_focus`.
+`install_file_picker_list` on `Added<FilePicker>`, `mirror_look`, which copies
+the list's look components from the root on `Added<PickerList>` or a change, and
+`redirect_focus`.
 
 After `InputFocusSystems::Dispatch` and `UiSystems::Areas`, before
 `WidgetSystems::Layout`, chained, so a key that edited the field lands the same
@@ -145,10 +144,13 @@ Keys reach the root by bubbling from the focused list. The list consumes one of
 its four only when it moves the cursor, so Up on the first row and Down on the
 last reach the root too, which binds neither, and bubble on to the picker's
 ancestors. `file_picker_key`, a global `FocusedInput<KeyboardInput>` observer on
-a `FilePicker` without `InteractionDisabled`, scans `FilePickerKeys` through
+a `FilePicker` without `ComputedDisabled`, scans `FilePickerKeys` through
 `first_bound`, then hands the key to the field's `TextInput::handle` with the
 root's `TextInputKeys`. A bound key is consumed; a key the field took is
-consumed and marks the picker changed; anything else bubbles on.
+consumed and marks the picker changed; anything else bubbles on. The engine
+resolves `ComputedDisabled` onto the root and its list from an
+`InteractionDisabled` on the root or any ancestor, so the crate copies nothing
+to the list, and a disabled picker's keys pass both and bubble on.
 
 `FilePickerAction`: `Parent` writes the parent of the listed directory through
 `directory_text` when the listing has one, and nothing at a root or the floor;

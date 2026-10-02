@@ -42,7 +42,6 @@ impl Plugin for FilePickerPlugin {
             (
                 (
                     parts::install_file_picker_list,
-                    parts::mirror_disabled,
                     parts::mirror_look,
                     parts::redirect_focus,
                 )
