@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-01
 
 ### Added
 
@@ -33,10 +33,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   focus to the widget beyond it, within the modal when the picker is in one. A
   held arrow still stops at the end. An app that wants its picker to keep them
   observes `FocusedInput<KeyboardInput>` on the picker and stops them there.
-- A disabled picker's list no longer carries an `InteractionDisabled` copied
-  from the picker. The list is disabled as anything inside a disabled widget is
-  in plurimus 0.8, and carries `ComputedDisabled`; an app that read the marker
-  on the list reads that.
+- A picker inside a disabled widget is disabled, as anything inside one is in
+  plurimus 0.8: with `InteractionDisabled` on an ancestor it takes no keys,
+  where under 0.7 the marker counted only on the picker itself. Its list no
+  longer carries an `InteractionDisabled` copied from the picker and carries
+  `ComputedDisabled` instead; an app that read the marker on the list reads
+  that.
 - Ctrl+C, Ctrl+X and Ctrl+V stay with a focused picker, whether or not there was
   anything to copy or paste; they reached the picker's ancestors before. An app
   that acted on one bubbling from a picker takes the binding off the picker's
@@ -54,9 +56,6 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   showing. It opened scrolled past the cursor's row, with no row marked until a
   key was pressed. Showing a hidden picker therefore puts its list back at its
   cursor, not where the wheel last left it.
-- A picker inside a disabled widget takes no keys. With `InteractionDisabled` on
-  an ancestor and not on the picker itself, its list ignored the arrows but
-  typing still edited the field and Enter still chose.
 
 ## [0.1.1] - 2026-09-27
 
