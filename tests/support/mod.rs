@@ -17,6 +17,7 @@ use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, 
 use plurimus_filepicker::{FilePicker, FilePickerPlugin, file_picker};
 use plurimus_term::{
     KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind, MouseMessage,
+    PasteMessage,
 };
 use plurimus_ui::UiArea;
 use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
@@ -152,6 +153,12 @@ pub fn press_chord(app: &mut App, modifier: ModifierKey, code: KeyCode) {
     press_key_kind(app, code, held, KeyKind::Press);
     press_key_kind(app, code, held, KeyKind::Release);
     press_key_kind(app, modifier_code, none, KeyKind::Release);
+}
+
+/// A bracketed paste, as a terminal sends one.
+pub fn paste(app: &mut App, text: &str) {
+    app.world_mut().write_message(PasteMessage(text.to_owned()));
+    app.update();
 }
 
 pub fn send_mouse(app: &mut App, kind: MouseKind, x: u16, y: u16) {

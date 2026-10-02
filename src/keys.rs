@@ -5,6 +5,7 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
+use plurimus_term::PasteMessage;
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_ui::{
@@ -177,6 +178,24 @@ pub(crate) fn file_picker_key(
     {
         state.set_changed();
         input.propagate(false);
+    }
+}
+
+/// A bracketed paste goes into the field at the caret, as typing does.
+pub(crate) fn file_picker_paste(
+    mut input: On<FocusedInput<PasteMessage>>,
+    mut access: PickerAccess,
+) {
+    let Ok((mut state, ..)) = access.pickers.get_mut(input.focused_entity) else {
+        return;
+    };
+    input.propagate(false);
+    if state
+        .bypass_change_detection()
+        .field_mut()
+        .paste(&input.input.0)
+    {
+        state.set_changed();
     }
 }
 
