@@ -103,6 +103,25 @@ pub fn scratch() -> tempfile::TempDir {
     dir
 }
 
+/// The files in [`tall_scratch`]'s `deep/`: more than the list has rows.
+pub const DEEP_FILES: usize = 12;
+const SHALLOW_FILES: usize = 8;
+
+/// A scratch directory taller than the list either way: `deep/` holding
+/// `p00.txt` to `p11.txt`, beside `q0.txt` to `q7.txt`.
+pub fn tall_scratch() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().expect("a scratch directory");
+    let deep = dir.path().join("deep");
+    std::fs::create_dir(&deep).unwrap();
+    for index in 0..DEEP_FILES {
+        std::fs::write(deep.join(format!("p{index:02}.txt")), "").unwrap();
+    }
+    for index in 0..SHALLOW_FILES {
+        std::fs::write(dir.path().join(format!("q{index}.txt")), "").unwrap();
+    }
+    dir
+}
+
 fn press_key_kind(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) {
     app.world_mut()
         .write_message(KeyMessage::new(code, modifiers, kind));

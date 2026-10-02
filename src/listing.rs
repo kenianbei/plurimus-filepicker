@@ -4,9 +4,10 @@ use std::path::{MAIN_SEPARATOR_STR, Path, PathBuf};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{Commands, Component, Entity, Mut, Query, Ref};
+use plurimus_core::ratatui_core::layout::Position;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_core::ratatui_core::text::{Line, Span};
-use plurimus_ui::UiStyle;
+use plurimus_ui::{ScrollOffset, UiStyle, apply_offset};
 use plurimus_widgets::{ActiveDescendant, ListItemTrailing, list_item};
 
 use crate::matching::{Match, find_match, light_matches};
@@ -141,7 +142,7 @@ fn read_entries(
 
 /// Respawns the list's rows from the listing and the filter whenever either
 /// changed, `..` ahead of the entries when the directory has a parent, the
-/// cursor on the first row that is not `..`.
+/// cursor on the first row that is not `..` and the list scrolled to its top.
 pub(crate) fn rebuild_rows(
     mut pickers: Query<(
         &FilePicker,
@@ -152,6 +153,7 @@ pub(crate) fn rebuild_rows(
         &mut BuiltRows,
     )>,
     rows: Query<&Children>,
+    mut offsets: Query<&mut ScrollOffset>,
     mut commands: Commands,
 ) {
     for (picker, listing, look, lit, list, mut built) in &mut pickers {
@@ -185,6 +187,9 @@ pub(crate) fn rebuild_rows(
             commands.spawn((list_item(NO_MATCH), UiStyle(DIM), ChildOf(list.0)));
         }
         commands.entity(list.0).insert(ActiveDescendant(cursor));
+        if let Ok(mut offset) = offsets.get_mut(list.0) {
+            apply_offset(list.0, Position::ORIGIN, &mut offset, &mut commands);
+        }
     }
 }
 
