@@ -77,7 +77,7 @@ fn enter_on_a_directory_descends() {
     press_key(&mut app, KeyCode::Enter);
     assert_eq!(picker(&app, entity).path(), "sub/");
     assert_eq!(rows(&app)[2], "> inner.rs");
-    assert!(chosen(&app).is_empty());
+    assert_eq!(chosen(&app), []);
 }
 
 #[test]
@@ -106,7 +106,7 @@ fn complete_writes_the_cursor_entry_into_the_field() {
     type_text(&mut app, "in");
     press_key(&mut app, KeyCode::Right);
     assert_eq!(picker(&app, entity).path(), "sub/inner.rs");
-    assert!(chosen(&app).is_empty());
+    assert_eq!(chosen(&app), []);
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn enter_on_the_parent_row_climbs() {
         dir.path().parent().unwrap()
     );
     assert_eq!(picker(&app, entity).filter(), "");
-    assert!(chosen(&app).is_empty());
+    assert_eq!(chosen(&app), []);
 }
 
 #[test]
@@ -303,7 +303,7 @@ fn without_accepts_new_an_unmatched_name_chooses_nothing() {
 
     assert_eq!(rows(&app)[1], "no match");
     press_key(&mut app, KeyCode::Enter);
-    assert!(chosen(&app).is_empty());
+    assert_eq!(chosen(&app), []);
 }
 
 #[test]
