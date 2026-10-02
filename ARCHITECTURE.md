@@ -188,7 +188,7 @@ Tests drive a full `App` headlessly: `CorePlugin` and `FilePickerPlugin`, a
 `tests/support/mod.rs` carries those helpers, copied from plurimus's unpublished
 `plurimus_test`, plus two scratch directories from `tempfile`, one of them with
 more entries than the list has rows, `spawn_picker_with`, which spawns a picker
-with more components from its first frame, and `listening_parent`, an entity
-that records the key presses bubbling past a picker spawned under it.
+with more components from its first frame, and `listening_parent`, which spawns
+an entity that records the key presses bubbling past a picker spawned under it.
 `tests/source.rs` lists an in-memory `DirectorySource` with no working
 directory; the `tempfile` tests are the disk's.
