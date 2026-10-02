@@ -6,6 +6,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A paste from the terminal goes into the path field at the caret, in place of
+  any selection, with control characters dropped. A picker took no bracketed
+  paste before.
+- The field's selection is drawn, in `UiTheme::selection`, with the caret left
+  out while something is selected, and stays drawn when the picker loses focus.
+  plurimus 0.8's default `TextInputKeys` select with Shift and Left, Right, Home
+  or End, with Ctrl+Shift and Left or Right, and with Ctrl+A; the next character
+  typed replaces what is selected.
+- Ctrl+C and Ctrl+X copy and cut the field's selection as a `TerminalRequest`,
+  and Ctrl+V inserts `LastCopied`, what a widget of the app last copied.
+  `plurimus_crossterm` writes a copy to the terminal's clipboard only with
+  `CrosstermPlugin::clipboard` set, which `examples/files.rs` now does.
+
 ### Changed
 
 - **Breaking:** the crate requires plurimus 0.8. An app moves to plurimus 0.8
@@ -15,6 +30,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   from the picker. The list is disabled as anything inside a disabled widget is
   in plurimus 0.8, and carries `ComputedDisabled`; an app that read the marker
   on the list reads that.
+- Ctrl+C, Ctrl+X and Ctrl+V stay with a focused picker, whether or not there was
+  anything to copy or paste; they reached the picker's ancestors before. An app
+  that acted on one bubbling from a picker takes the binding off the picker's
+  `TextInputKeys`. `examples/files.rs` quits on Ctrl+Q for this reason.
 
 ### Fixed
 
