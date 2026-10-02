@@ -8,7 +8,7 @@ use bevy_input::keyboard::KeyboardInput;
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_ui::{
-    Click, InteractionDisabled, Key, KeyBinding, ModalDismiss, PointerPress, PressFocusDisabled,
+    Click, ComputedDisabled, Key, KeyBinding, ModalDismiss, PointerPress, PressFocusDisabled,
     ValueChange, first_bound,
 };
 use plurimus_widgets::{ActiveDescendant, ListBox, TextInputKeys};
@@ -75,7 +75,7 @@ pub(crate) struct PickerAccess<'w, 's> {
             &'static mut FilePickerLook,
             &'static Listing,
         ),
-        Without<InteractionDisabled>,
+        Without<ComputedDisabled>,
     >,
     cursors: Query<'w, 's, &'static ActiveDescendant>,
     entries: Query<'w, 's, &'static Entry>,

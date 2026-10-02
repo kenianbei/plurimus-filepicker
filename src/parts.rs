@@ -1,15 +1,12 @@
 use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut, Ref};
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{
-    Added, Changed, Commands, Component, Entity, Has, Or, Query, RemovedComponents, ResMut, With,
-    Without,
+    Added, Changed, Commands, Component, Entity, Has, Or, Query, ResMut, With, Without,
 };
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiOrder, local_area};
 use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
-use plurimus_ui::{
-    ComputedWidgetArea, InteractionDisabled, Key, ScrollArea, ScrollOffset, apply_offset,
-};
+use plurimus_ui::{ComputedWidgetArea, Key, ScrollArea, ScrollOffset, apply_offset};
 use plurimus_widgets::{
     ActiveDescendant, ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxSelectionMarker,
     ListBoxStripe, listbox,
@@ -107,22 +104,6 @@ pub(crate) fn place_file_picker_parts(
             .map_or(rect, |viewport| local_area(rect, viewport));
         area.set_if_neq(UiArea::Fixed(local));
         list_order.set_if_neq(UiOrder(order.map_or(0, |order| order.0).saturating_add(1)));
-    }
-}
-
-pub(crate) fn mirror_disabled(
-    disabled: Query<&PickerList, Added<InteractionDisabled>>,
-    mut enabled: RemovedComponents<InteractionDisabled>,
-    lists: Query<&PickerList>,
-    mut commands: Commands,
-) {
-    for list in &disabled {
-        commands.entity(list.0).insert(InteractionDisabled);
-    }
-    for picker in enabled.read() {
-        if let Ok(list) = lists.get(picker) {
-            commands.entity(list.0).remove::<InteractionDisabled>();
-        }
     }
 }
 
