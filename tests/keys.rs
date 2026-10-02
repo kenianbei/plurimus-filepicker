@@ -8,9 +8,9 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{On, ResMut, Resource};
-use bevy_input_focus::InputFocus;
 use plurimus_filepicker::FilePickerLook;
 use plurimus_term::{KeyCode, ModifierKey};
+use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{ModalDismiss, ValueChange};
 use support::{
     click, cursor, focused, list_of, picker, press_chord, press_key, repeat_key, rows, scratch,

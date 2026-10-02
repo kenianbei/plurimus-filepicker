@@ -1,9 +1,9 @@
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::prelude::{Query, Res};
-use bevy_input_focus::InputFocus;
 use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span};
+use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{
     ComputedWidgetArea, StateQuery, Stylable, StylistCache, UiTheme, hashed_bits, observed,
 };

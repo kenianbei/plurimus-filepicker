@@ -15,8 +15,8 @@ itself.
 
 ```toml
 [dependencies]
-plurimus = { version = "0.7", features = ["widgets"] }
-plurimus_filepicker = "0.1"
+plurimus = { version = "0.8", features = ["widgets"] }
+plurimus_filepicker = "0.2"
 ```
 
 ```rust,ignore
@@ -56,6 +56,7 @@ spawn.
 
 | plurimus_filepicker | plurimus | bevy |
 | ------------------- | -------- | ---- |
+| 0.2                 | 0.8      | 0.19 |
 | 0.1                 | 0.7      | 0.19 |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the crate is put together.
