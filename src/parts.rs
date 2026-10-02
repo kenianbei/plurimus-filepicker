@@ -4,13 +4,15 @@ use bevy_ecs::prelude::{
     Added, Changed, Commands, Component, Entity, Has, Or, Query, RemovedComponents, ResMut, With,
     Without,
 };
-use plurimus_core::ratatui_core::layout::{Rect, Size};
+use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiOrder, local_area};
 use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
-use plurimus_ui::{ComputedWidgetArea, InteractionDisabled, Key, ScrollArea};
+use plurimus_ui::{
+    ComputedWidgetArea, InteractionDisabled, Key, ScrollArea, ScrollOffset, apply_offset,
+};
 use plurimus_widgets::{
-    ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxSelectionMarker, ListBoxStripe,
-    listbox,
+    ActiveDescendant, ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxSelectionMarker,
+    ListBoxStripe, listbox,
 };
 
 use crate::layout::split_area;
@@ -66,6 +68,8 @@ type Lists<'w, 's> = Query<
         &'static mut UiArea,
         &'static mut ComputedWidgetArea,
         &'static mut UiOrder,
+        &'static mut ScrollOffset,
+        &'static mut ActiveDescendant,
     ),
     (With<ListBox>, Without<FilePicker>),
 >;
@@ -76,6 +80,7 @@ pub(crate) fn place_file_picker_parts(
     cameras: CameraViewports,
     pickers: Pickers,
     mut lists: Lists,
+    mut commands: Commands,
 ) {
     for (picker_area, camera, order, list) in &pickers {
         let moved = picker_area.is_changed()
@@ -84,10 +89,18 @@ pub(crate) fn place_file_picker_parts(
         if !moved {
             continue;
         }
-        let Ok((mut area, mut computed, mut list_order)) = lists.get_mut(list.0) else {
+        let Ok((mut area, mut computed, mut list_order, mut offset, mut cursor)) =
+            lists.get_mut(list.0)
+        else {
             continue;
         };
         let (_, rect) = split_area(picker_area.0);
+        // The engine reveals the cursor into a list with no area and leaves
+        // the offset past it; the reveal has to run again once there is one.
+        if computed.0.is_empty() && !rect.is_empty() {
+            apply_offset(list.0, Position::ORIGIN, &mut offset, &mut commands);
+            cursor.set_changed();
+        }
         computed.set_if_neq(ComputedWidgetArea(rect));
         let local = cameras
             .of(camera.0)

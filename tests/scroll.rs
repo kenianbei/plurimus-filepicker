@@ -4,10 +4,17 @@ mod support;
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use plurimus_core::ratatui_core::layout::Position;
+use plurimus_core::ratatui_core::layout::{Position, Rect};
+use plurimus_filepicker::file_picker;
 use plurimus_term::KeyCode;
-use plurimus_ui::ScrollOffset;
-use support::{DEEP_FILES, app, list_of, press_key, row_texts, spawn_picker, tall_scratch};
+use plurimus_ui::{ScrollOffset, UiArea};
+use support::{
+    COLS, DEEP_FILES, ROWS, app, focus, list_of, press_key, row_texts, rows, spawn_picker,
+    tall_scratch,
+};
+
+/// Where the engine's reveal leaves a list with no area: past its cursor.
+const UNPLACED_OFFSET: Position = Position::new(1, 2);
 
 /// A picker over `deep/` with the cursor on its last row, so the list is
 /// scrolled as far as it goes.
@@ -58,4 +65,31 @@ fn a_filtered_listing_opens_at_its_top() {
 
     assert_eq!(offset(&app, list), Position::ORIGIN);
     assert_eq!(top_rows(&app), ["../", "p00.txt"]);
+}
+
+#[test]
+fn a_picker_placed_late_opens_at_its_top() {
+    let dir = tall_scratch();
+    let mut app = app();
+    let picker = app
+        .world_mut()
+        .spawn((
+            file_picker(dir.path().join("deep")),
+            UiArea::Fixed(Rect::ZERO),
+        ))
+        .id();
+    focus(&mut app, picker);
+    app.update();
+    app.update();
+    let list = list_of(&mut app, picker);
+    assert_eq!(offset(&app, list), UNPLACED_OFFSET);
+
+    app.world_mut()
+        .entity_mut(picker)
+        .insert(UiArea::Fixed(Rect::new(0, 0, COLS, ROWS)));
+    app.update();
+
+    assert_eq!(offset(&app, list), Position::ORIGIN);
+    assert_eq!(top_rows(&app), ["../", "p00.txt"]);
+    assert!(rows(&app)[2].starts_with("> p00.txt"), "{:?}", rows(&app));
 }
