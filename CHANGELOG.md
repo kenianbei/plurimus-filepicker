@@ -33,7 +33,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Ctrl+C, Ctrl+X and Ctrl+V stay with a focused picker, whether or not there was
   anything to copy or paste; they reached the picker's ancestors before. An app
   that acted on one bubbling from a picker takes the binding off the picker's
-  `TextInputKeys`. `examples/files.rs` quits on Ctrl+Q for this reason.
+  `TextInputKeys`. An app that reads `KeyMessage` itself for Ctrl+C still sees
+  the key, and now acts on one that also copies; `examples/files.rs` quits on
+  Ctrl+Q so that its Ctrl+C is only a copy.
 
 ### Fixed
 
