@@ -4,7 +4,9 @@
 plurimus's public widget engine, outside the plurimus workspace. It depends on
 `plurimus_core`, `plurimus_ui`, `plurimus_widgets`, and `plurimus_term` at the
 same version an app pulls through the `plurimus` facade, so cargo unifies them
-and the picker's components sit beside the app's own widgets.
+and the picker's components sit beside the app's own widgets. `bevy_input_focus`
+is not a dependency of its own: the crate reaches it through `plurimus_ui`'s
+re-export, at the version the engine uses.
 
 `FilePickerPlugin` installs the crate's systems and observers. It requires
 `CorePlugin` first and adds `WidgetsPlugin` when absent.
@@ -80,9 +82,9 @@ source's: it expands through `std::env::home_dir` in the path model, which
 
 In `PreUpdate`, before `UiSystems::Areas` and focus dispatch, chained:
 `install_file_picker_list` on `Added<FilePicker>`, `mirror_disabled`, which
-copies `InteractionDisabled` on and off the list because the engine does not
-pass it to children, `mirror_look`, which copies the list's look components from
-the root on `Added<PickerList>` or a change, and `redirect_focus`.
+copies the picker's own `InteractionDisabled` on and off the list,
+`mirror_look`, which copies the list's look components from the root on
+`Added<PickerList>` or a change, and `redirect_focus`.
 
 After `InputFocusSystems::Dispatch` and `UiSystems::Areas`, before
 `WidgetSystems::Layout`, chained, so a key that edited the field lands the same
@@ -132,9 +134,11 @@ between hits. `light_matches` builds the row's line with hit runs in
 
 ## Keys and events
 
-Keys reach the root by bubbling from the focused list, which has already taken
-its own. `file_picker_key`, a global `FocusedInput<KeyboardInput>` observer on a
-`FilePicker` without `InteractionDisabled`, scans `FilePickerKeys` through
+Keys reach the root by bubbling from the focused list. The list consumes one of
+its four only when it moves the cursor, so Up on the first row and Down on the
+last reach the root too, which binds neither, and bubble on to the picker's
+ancestors. `file_picker_key`, a global `FocusedInput<KeyboardInput>` observer on
+a `FilePicker` without `InteractionDisabled`, scans `FilePickerKeys` through
 `first_bound`, then hands the key to the field's `TextInput::handle` with the
 root's `TextInputKeys`. A bound key is consumed; a key the field took is
 consumed and marks the picker changed; anything else bubbles on.

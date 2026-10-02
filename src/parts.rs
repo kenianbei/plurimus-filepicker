@@ -97,9 +97,6 @@ pub(crate) fn place_file_picker_parts(
     }
 }
 
-/// The engine does not pass `InteractionDisabled` to children, so the list
-/// takes the picker's, and the engine's own key, press and navigation
-/// filters do the rest.
 pub(crate) fn mirror_disabled(
     disabled: Query<&PickerList, Added<InteractionDisabled>>,
     mut enabled: RemovedComponents<InteractionDisabled>,
