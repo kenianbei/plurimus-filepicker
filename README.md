@@ -38,6 +38,13 @@ the current directory in a modal pane.
 | Ctrl+.                     | toggles hidden entries                       |
 | Esc                        | triggers `ModalDismiss` on the picker        |
 
+The list keeps its four keys only while they move the cursor, as every plurimus
+list does. Up or PageUp on the first row and Down or PageDown on the last bubble
+on to the picker's ancestors, so a fresh arrow press at an end moves focus to
+the widget beyond it, within the modal when the picker is in one; a held arrow
+stops at the end. To keep them, observe `FocusedInput<KeyboardInput>` on the
+picker and stop those keys there.
+
 The field takes a plurimus text field's keys:
 
 | key                              | does                                     |
