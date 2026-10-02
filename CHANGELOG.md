@@ -17,6 +17,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A listing opens at its top. One that replaced a scrolled listing kept its
   scroll, so climbing out of a long directory, entering one, or typing a filter
   could open with `../` scrolled off above the cursor.
+- A picker given its area after its first frame, such as one in a box sized a
+  frame late, or one shown after being hidden, opens at its top with its cursor
+  showing. It opened scrolled past the cursor's row, with no row marked until a
+  key was pressed. Showing a hidden picker therefore puts its list back at its
+  cursor, not where the wheel last left it.
 
 ## [0.1.1] - 2026-09-27
 

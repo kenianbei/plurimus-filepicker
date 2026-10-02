@@ -118,7 +118,12 @@ frame ahead of the engine's row passes:
 3. `place_file_picker_parts` runs when the root's area, order, or list changed.
    It cuts the root's area with `layout::split_area` into the one-row field and
    the rest, and writes the list's `ComputedWidgetArea`, `UiArea::Fixed` through
-   `local_area`, and `UiOrder` one above the root's.
+   `local_area`, and `UiOrder` one above the root's. Where that area goes from
+   empty to having cells, a picker placed after its rows or shown after being
+   hidden, it first puts the list's `ScrollOffset` back at the origin through
+   `apply_offset` and marks `ActiveDescendant` changed: the engine reveals a
+   cursor into a list with no area and leaves the offset past it, and reveals
+   again only when the cursor changes.
 
 In `Update`, `style_file_pickers` in `WidgetSystems::Style` draws the root's
 `UiWidget`: the prompt, the field's text, and the theme caret under the cursor
