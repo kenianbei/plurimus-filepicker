@@ -38,13 +38,33 @@ the current directory in a modal pane.
 | Ctrl+.                     | toggles hidden entries                       |
 | Esc                        | triggers `ModalDismiss` on the picker        |
 
-Every binding is data in `FilePickerKeys`. `..` lists first in any directory
-with a parent, so Enter on it climbs too. `FilePickerFloor` stops traversal
-above a directory. `FilePickerLook` sets the prompt, whether dot-entries are
-listed, which extensions are listed, and whether the filter is offered as a new
-file name for a save dialog; with exactly one extension listed, a name typed
-without one is offered with it, so `copy` offers `copy.toml`.
-`FilePickerMatchStyle` styles the matched characters.
+The field edits like any plurimus text field:
+
+| key                              | does                                     |
+| -------------------------------- | ---------------------------------------- |
+| Home, End, Ctrl+Left, Ctrl+Right | move the caret                           |
+| Shift with any of those          | selects to where the caret moves         |
+| Shift+Left, Shift+Right          | select one character                     |
+| Ctrl+A                           | selects the whole field                  |
+| Ctrl+C, Ctrl+X                   | copy and cut the selection               |
+| Ctrl+V                           | pastes what the app last copied          |
+| a paste from the terminal        | goes in at the caret, over any selection |
+
+The picker's bindings are data in `FilePickerKeys` and the field's in
+`TextInputKeys`, both on the picker. `FilePickerKeys` is scanned first, so a key
+bound in both is the picker's: plain Left and Right climb and complete, and only
+their shifted forms reach the field. A copy goes out as a `TerminalRequest`,
+which `plurimus_crossterm` writes to the terminal's clipboard only with
+`CrosstermPlugin::clipboard` set. The three clipboard keys stay with the picker
+even with nothing to copy or paste; take them off its `TextInputKeys` to hand
+them to the app.
+
+`..` lists first in any directory with a parent, so Enter on it climbs too.
+`FilePickerFloor` stops traversal above a directory. `FilePickerLook` sets the
+prompt, whether dot-entries are listed, which extensions are listed, and whether
+the filter is offered as a new file name for a save dialog; with exactly one
+extension listed, a name typed without one is offered with it, so `copy` offers
+`copy.toml`. `FilePickerMatchStyle` styles the matched characters.
 
 `FilePickerDecorator` badges and styles file rows: a function from a file's path
 to a `RowDecoration`, a trailing line and a style, run once per file each time a

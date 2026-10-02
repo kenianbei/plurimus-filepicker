@@ -8,13 +8,17 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
+use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_term::{KeyCode, LastCopied, ModifierKey};
-use plurimus_ui::InteractionDisabled;
-use plurimus_ui::bevy_input_focus::FocusedInput;
+use plurimus_ui::bevy_input_focus::{FocusedInput, InputFocus};
+use plurimus_ui::{InteractionDisabled, UiTheme};
 use support::{
-    app, paste, picker, press_chord, press_key, row_texts, scratch, spawn_picker,
-    spawn_picker_with, type_text,
+    ROWS, app, composed_styled_frame, paste, picker, press_chord, press_key, row_texts, scratch,
+    spawn_picker, spawn_picker_with, type_text,
 };
+
+/// The field row's first cells: the two of the prompt, `ab`, and one more.
+const FIELD_CELLS: usize = 5;
 
 /// The keys pressed that bubbled past the picker to its parent.
 #[derive(Resource, Default)]
@@ -22,6 +26,20 @@ struct Heard(Vec<Key>);
 
 fn ctrl(app: &mut App, character: char) {
     press_chord(app, ModifierKey::ControlLeft, KeyCode::Char(character));
+}
+
+/// Asserts the field row draws `ab` underlined and no caret after it.
+fn assert_selection_drawn(app: &App, when: &str) {
+    let styled = composed_styled_frame(app);
+    let cells = &styled.lines().nth(ROWS as usize + 1).unwrap()[..FIELD_CELLS];
+    let underlined = styled
+        .lines()
+        .find(|line| line.ends_with("UNDERLINED"))
+        .and_then(|line| line.chars().next())
+        .unwrap_or_else(|| panic!("nothing is underlined {when}: {styled}"));
+    let plain = cells.chars().next().unwrap();
+    let selected = [plain, plain, underlined, underlined, plain];
+    assert_eq!(cells, String::from_iter(selected), "{when}: {styled}");
 }
 
 fn last_copied(app: &App) -> Option<&str> {
@@ -126,4 +144,22 @@ fn a_clipboard_key_with_nothing_to_act_on_stays_with_the_picker() {
         .collect();
     assert_eq!(heard, [&Key::Character("h".into())], "only the unbound");
     assert_eq!(last_copied(&app), None);
+}
+
+#[test]
+fn a_selection_is_drawn_in_place_of_the_caret() {
+    let dir = scratch();
+    let mut app = app();
+    let underline = Style::new().add_modifier(Modifier::UNDERLINED);
+    app.insert_resource(UiTheme::default().with_selection(underline));
+    spawn_picker(&mut app, dir.path());
+    type_text(&mut app, "ab");
+
+    ctrl(&mut app, 'a');
+
+    assert_selection_drawn(&app, "focused");
+
+    app.world_mut().resource_mut::<InputFocus>().clear();
+    app.update();
+    assert_selection_drawn(&app, "without focus");
 }
