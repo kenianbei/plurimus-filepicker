@@ -144,14 +144,15 @@ between hits. `light_matches` builds the row's line with hit runs in
 ## Keys and events
 
 Keys reach the root by bubbling from the focused list. The list consumes one of
-its four only when it moves the cursor, so Up on the first row and Down on the
-last reach the root too, which binds neither, and bubble on to the picker's
-ancestors. `file_picker_key`, a global `FocusedInput<KeyboardInput>` observer on
-a `FilePicker` without `ComputedDisabled`, scans `FilePickerKeys` through
-`first_bound`, then the root's `TextInputKeys`, so a key bound in both is the
-picker's. Of the field's actions, the three `TextInput::handle` leaves to its
-host are carried out here: `Copy` and `Cut` write the selection, when there is
-one, as `TerminalRequest::copy`, `Cut` then deleting it, and `Paste` inserts
+its four only when it moves the cursor, so Up or PageUp on the first row and
+Down or PageDown on the last reach the root too, which binds none of them by
+default, and bubble on to the picker's ancestors. `file_picker_key`, a global
+`FocusedInput<KeyboardInput>` observer on a `FilePicker` without
+`ComputedDisabled`, scans `FilePickerKeys` through `first_bound`, then the
+root's `TextInputKeys`, so a key bound in both is the picker's. Of the field's
+actions, the three `TextInput::handle` leaves to its host are carried out here:
+`Copy` and `Cut` write the selection, when there is one, as
+`TerminalRequest::copy`, `Cut` then deleting it, and `Paste` inserts
 `plurimus_term::LastCopied` through `TextInput::paste`. Any other key goes to
 `TextInput::handle`. A key bound in `FilePickerKeys` is consumed, and so are the
 three clipboard actions whether or not they acted; a key `handle` took is
@@ -186,7 +187,8 @@ Tests drive a full `App` headlessly: `CorePlugin` and `FilePickerPlugin`, a
 `plurimus_term` messages, and the composed frame read from the render sub-app.
 `tests/support/mod.rs` carries those helpers, copied from plurimus's unpublished
 `plurimus_test`, plus two scratch directories from `tempfile`, one of them with
-more entries than the list has rows, and `spawn_picker_with`, which spawns a
-picker with more components from its first frame. `tests/source.rs` lists an
-in-memory `DirectorySource` with no working directory; the `tempfile` tests are
-the disk's.
+more entries than the list has rows, `spawn_picker_with`, which spawns a picker
+with more components from its first frame, and `listening_parent`, which spawns
+an entity that records the key presses bubbling past a picker spawned under it.
+`tests/source.rs` lists an in-memory `DirectorySource` with no working
+directory; the `tempfile` tests are the disk's.

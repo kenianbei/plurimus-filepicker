@@ -44,9 +44,12 @@ pub enum FilePickerAction {
 /// The picker's key bindings, scanned first to last.
 ///
 /// The child list takes `Up`, `Down`, `PageUp` and `PageDown` before these
-/// are consulted, and the field's [`TextInputKeys`] get whatever these
-/// leave. A key bound in both is the picker's: by default plain `Left`
-/// climbs and `Right` completes, while their shifted forms select.
+/// are consulted, while they move its cursor. One that cannot, on the first
+/// row or the last, is scanned here as any other key is, and with no binding
+/// bubbles on to the picker's ancestors. The field's [`TextInputKeys`] get
+/// whatever these leave. A key bound in both is the picker's: by default
+/// plain `Left` climbs and `Right` completes, while their shifted forms
+/// select.
 #[derive(Component, Debug, Clone)]
 pub struct FilePickerKeys(pub Vec<(KeyBinding, FilePickerAction)>);
 

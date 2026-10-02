@@ -6,15 +6,16 @@ use std::path::{Path, PathBuf};
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::hierarchy::Children;
+use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use plurimus_filepicker::FilePickerLook;
 use plurimus_term::{KeyCode, ModifierKey};
 use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{ModalDismiss, ValueChange};
 use support::{
-    click, cursor, focused, list_of, picker, press_chord, press_key, repeat_key, rows, scratch,
-    set_path, spawn_picker, type_text,
+    Heard, click, cursor, focused, list_of, listening_parent, picker, press_chord, press_key,
+    repeat_key, rows, scratch, set_path, spawn_picker, spawn_picker_with, type_text,
 };
 
 #[derive(Resource, Default)]
@@ -66,6 +67,31 @@ fn down_moves_the_cursor_through_the_list() {
 
     press_key(&mut app, KeyCode::Down);
     assert_eq!(cursor(&app, list), Some(children[2]));
+}
+
+#[test]
+fn list_keys_at_an_end_leave_the_picker() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let parent = listening_parent(&mut app);
+    spawn_picker_with(&mut app, dir.path(), ChildOf(parent));
+
+    let to_the_first_row = [KeyCode::Down, KeyCode::PageUp];
+    let at_the_first_row = [KeyCode::Up, KeyCode::PageUp];
+    let to_the_last_row = [KeyCode::PageDown];
+    let at_the_last_row = [KeyCode::Down, KeyCode::PageDown];
+    for code in to_the_first_row
+        .into_iter()
+        .chain(at_the_first_row)
+        .chain(to_the_last_row)
+        .chain(at_the_last_row)
+    {
+        press_key(&mut app, code);
+    }
+
+    let heard = &app.world().resource::<Heard>().0;
+    let at_the_ends = [Key::ArrowUp, Key::PageUp, Key::ArrowDown, Key::PageDown];
+    assert_eq!(heard, &at_the_ends, "a key that moved the cursor stays");
 }
 
 #[test]

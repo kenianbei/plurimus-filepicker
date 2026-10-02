@@ -26,6 +26,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Breaking:** the crate requires plurimus 0.8. An app moves to plurimus 0.8
   with it; one left on 0.7 resolves two copies of plurimus, and the picker's
   components do not match the app's.
+- Up, Down, PageUp and PageDown leave the picker when they cannot move the
+  cursor: Up or PageUp on the first row, Down or PageDown on the last. Under
+  plurimus 0.7 the list consumed them there; under 0.8 they bubble to the
+  picker's ancestors as from any list, so a fresh arrow press at an end moves
+  focus to the widget beyond it, within the modal when the picker is in one. A
+  held arrow still stops at the end. An app that wants its picker to keep them
+  observes `FocusedInput<KeyboardInput>` on the picker and stops them there.
 - A disabled picker's list no longer carries an `InteractionDisabled` copied
   from the picker. The list is disabled as anything inside a disabled widget is
   in plurimus 0.8, and carries `ComputedDisabled`; an app that read the marker

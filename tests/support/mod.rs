@@ -10,6 +10,9 @@ use std::path::Path;
 use bevy_app::App;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::prelude::{On, ResMut, Resource};
+use bevy_input::ButtonState;
+use bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::Style;
@@ -20,7 +23,7 @@ use plurimus_term::{
     PasteMessage,
 };
 use plurimus_ui::UiArea;
-use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
+use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_widgets::{ActiveDescendant, ListBox};
 
 pub const COLS: u16 = 20;
@@ -52,6 +55,26 @@ pub fn spawn_picker_with(app: &mut App, base: &Path, extra: impl Bundle) -> Enti
     focus(app, picker);
     app.update();
     picker
+}
+
+/// The keys pressed that bubbled to a [`listening_parent`].
+#[derive(Resource, Default)]
+pub struct Heard(pub Vec<Key>);
+
+/// An entity recording in [`Heard`] each key press that reaches it, to spawn
+/// a picker under.
+pub fn listening_parent(app: &mut App) -> Entity {
+    app.init_resource::<Heard>();
+    app.world_mut()
+        .spawn_empty()
+        .observe(
+            |input: On<FocusedInput<KeyboardInput>>, mut heard: ResMut<Heard>| {
+                if input.input.state == ButtonState::Pressed {
+                    heard.0.push(input.input.logical_key.clone());
+                }
+            },
+        )
+        .id()
 }
 
 pub fn focus(app: &mut App, entity: Entity) {
