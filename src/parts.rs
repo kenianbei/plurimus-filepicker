@@ -4,9 +4,9 @@ use bevy_ecs::prelude::{
     Added, Changed, Commands, Component, Entity, Has, Or, Query, RemovedComponents, ResMut, With,
     Without,
 };
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiOrder, local_area};
+use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_ui::{ComputedWidgetArea, InteractionDisabled, Key, ScrollArea};
 use plurimus_widgets::{
     ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxSelectionMarker, ListBoxStripe,
@@ -97,9 +97,6 @@ pub(crate) fn place_file_picker_parts(
     }
 }
 
-/// The engine does not pass `InteractionDisabled` to children, so the list
-/// takes the picker's, and the engine's own key, press and navigation
-/// filters do the rest.
 pub(crate) fn mirror_disabled(
     disabled: Query<&PickerList, Added<InteractionDisabled>>,
     mut enabled: RemovedComponents<InteractionDisabled>,

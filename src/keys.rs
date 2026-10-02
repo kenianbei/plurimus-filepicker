@@ -5,8 +5,8 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
-use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_ui::{
     Click, InteractionDisabled, Key, KeyBinding, ModalDismiss, PointerPress, PressFocusDisabled,
     ValueChange, first_bound,

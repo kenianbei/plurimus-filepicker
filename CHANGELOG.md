@@ -6,6 +6,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the crate requires plurimus 0.8. An app moves to plurimus 0.8
+  with it; one left on 0.7 resolves two copies of plurimus, and the picker's
+  components do not match the app's.
+
+## [0.1.1] - 2026-09-27
+
 ### Added
 
 - `FilePickerSource` on a picker names what it lists: any `DirectorySource`,

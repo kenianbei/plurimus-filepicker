@@ -10,7 +10,6 @@ use std::path::Path;
 use bevy_app::App;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::Style;
@@ -20,6 +19,7 @@ use plurimus_term::{
     KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind, MouseMessage,
 };
 use plurimus_ui::UiArea;
+use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_widgets::{ActiveDescendant, ListBox};
 
 pub const COLS: u16 = 20;

@@ -4,8 +4,8 @@
 
 use bevy_app::{App, Plugin, PreUpdate, Update};
 use bevy_ecs::prelude::IntoScheduleConfigs;
-use bevy_input_focus::InputFocusSystems;
 use plurimus_ui::UiSystems;
+use plurimus_ui::bevy_input_focus::InputFocusSystems;
 use plurimus_widgets::{WidgetSystems, WidgetsPlugin};
 
 mod keys;

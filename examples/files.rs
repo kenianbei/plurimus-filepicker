@@ -13,14 +13,14 @@ use bevy_ecs::prelude::{
     Commands, IntoScheduleConfigs, MessageReader, MessageWriter, On, Query, Res, ResMut, Resource,
     With, Without,
 };
-use bevy_input_focus::tab_navigation::TabGroup;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Margin, Rect};
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea};
 use plurimus_crossterm::CrosstermPlugin;
 use plurimus_filepicker::{FilePicker, FilePickerPlugin, file_picker};
 use plurimus_term::{KeyCode, KeyKind, KeyMessage};
+use plurimus_ui::bevy_input_focus::tab_navigation::TabGroup;
+use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_ui::{ModalDismiss, ModalOpen, UiSystems, ValueChange};
 use plurimus_widgets::{ListBoxCursor, Pane, pane};
 
