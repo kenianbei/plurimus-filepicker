@@ -5,24 +5,18 @@ mod support;
 
 use bevy_app::App;
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{On, ResMut, Resource};
-use bevy_input::ButtonState;
-use bevy_input::keyboard::{Key, KeyboardInput};
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_term::{KeyCode, LastCopied, ModifierKey};
-use plurimus_ui::bevy_input_focus::{FocusedInput, InputFocus};
+use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{InteractionDisabled, UiTheme};
 use support::{
-    ROWS, app, composed_styled_frame, paste, picker, press_chord, press_key, row_texts, scratch,
-    spawn_picker, spawn_picker_with, type_text,
+    Heard, ROWS, app, composed_styled_frame, listening_parent, paste, picker, press_chord,
+    press_key, row_texts, scratch, spawn_picker, spawn_picker_with, type_text,
 };
 
 /// The field row's first cells: the two of the prompt, `ab`, and one more.
 const FIELD_CELLS: usize = 5;
-
-/// The keys pressed that bubbled past the picker to its parent.
-#[derive(Resource, Default)]
-struct Heard(Vec<Key>);
 
 fn ctrl(app: &mut App, character: char) {
     press_chord(app, ModifierKey::ControlLeft, KeyCode::Char(character));
@@ -117,18 +111,7 @@ fn cut_sends_the_selection_and_deletes_it() {
 fn a_clipboard_key_with_nothing_to_act_on_stays_with_the_picker() {
     let dir = scratch();
     let mut app = app();
-    app.init_resource::<Heard>();
-    let parent = app
-        .world_mut()
-        .spawn_empty()
-        .observe(
-            |input: On<FocusedInput<KeyboardInput>>, mut heard: ResMut<Heard>| {
-                if input.input.state == ButtonState::Pressed {
-                    heard.0.push(input.input.logical_key.clone());
-                }
-            },
-        )
-        .id();
+    let parent = listening_parent(&mut app);
     spawn_picker_with(&mut app, dir.path(), ChildOf(parent));
 
     for character in ['c', 'x', 'v', 'h'] {
