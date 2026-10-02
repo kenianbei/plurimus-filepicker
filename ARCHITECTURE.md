@@ -125,10 +125,13 @@ frame ahead of the engine's row passes:
    again only when the cursor changes.
 
 In `Update`, `style_file_pickers` in `WidgetSystems::Style` draws the root's
-`UiWidget`: the prompt, the field's text, and the theme caret under the cursor
-while the list holds focus, as a `Paragraph` scrolled so the caret stays in
-view. It is gated by `StylistCache::redraws` over the field and the area's
-width, and treats the picker as focused when its list is.
+`UiWidget`: the prompt and the field's text as a `Paragraph` scrolled so the
+cursor stays in view. The field's selection is drawn in `UiTheme::selection`,
+focused or not; with nothing selected and the list holding focus, the `char`
+under the cursor, or a blank past the text's end, is drawn in `UiTheme::caret`.
+It is gated by `StylistCache::redraws` over the field, selection included, and
+the area's width, redraws on a changed theme or look, and treats the picker as
+focused when its list is.
 
 ## Matching
 
@@ -145,12 +148,18 @@ its four only when it moves the cursor, so Up on the first row and Down on the
 last reach the root too, which binds neither, and bubble on to the picker's
 ancestors. `file_picker_key`, a global `FocusedInput<KeyboardInput>` observer on
 a `FilePicker` without `ComputedDisabled`, scans `FilePickerKeys` through
-`first_bound`, then hands the key to the field's `TextInput::handle` with the
-root's `TextInputKeys`. A bound key is consumed; a key the field took is
-consumed and marks the picker changed; anything else bubbles on. The engine
-resolves `ComputedDisabled` onto the root and its list from an
-`InteractionDisabled` on the root or any ancestor, so the crate copies nothing
-to the list, and a disabled picker's keys pass both and bubble on.
+`first_bound`, then the root's `TextInputKeys`, so a key bound in both is the
+picker's. Of the field's actions, the three `TextInput::handle` leaves to its
+host are carried out here: `Copy` and `Cut` write the selection, when there is
+one, as `TerminalRequest::copy`, `Cut` then deleting it, and `Paste` inserts
+`plurimus_term::LastCopied` through `TextInput::paste`. Any other key goes to
+`TextInput::handle`. A key bound in `FilePickerKeys` is consumed, and so are the
+three clipboard actions whether or not they acted; a key `handle` took is
+consumed and marks the picker changed, as a cut or paste that edited the field
+does; anything else bubbles on. The engine resolves `ComputedDisabled` onto the
+root and its list from an `InteractionDisabled` on the root or any ancestor, so
+the crate copies nothing to the list, and a disabled picker's keys pass both and
+bubble on.
 
 `FilePickerAction`: `Parent` writes the parent of the listed directory through
 `directory_text` when the listing has one, and nothing at a root or the floor;
@@ -159,6 +168,13 @@ a file, skipped on a key repeat; `Complete` writes the cursor's entry into the
 field with a separator after a directory; `ToggleHidden` flips
 `FilePickerLook::hidden`; `Close` triggers `ModalDismiss { entity: root }`.
 
+A bracketed paste bubbles from the list the same way. `file_picker_paste`, a
+global `FocusedInput<PasteMessage>` observer over the same pickers, stops it and
+inserts the text at the cursor through `TextInput::paste`, which drops control
+characters and replaces the selection, marking the picker changed when anything
+went in. `FilePicker::set_path`, `Parent` and `Complete` replace the field with
+a new `TextInput`, which ends the selection; losing focus does not.
+
 Two more global observers: `PointerPress` on the root focuses its list unless
 the root has `PressFocusDisabled`, and a `Click` with count two or more on the
 list applies `Enter` to the cursor's row.
@@ -166,8 +182,8 @@ list applies `Enter` to the cursor's row.
 ## Tests
 
 Tests drive a full `App` headlessly: `CorePlugin` and `FilePickerPlugin`, a
-`TerminalCamera`, a `TerminalSize`, keys and mouse written as `plurimus_term`
-messages, and the composed frame read from the render sub-app.
+`TerminalCamera`, a `TerminalSize`, keys, mouse and pastes written as
+`plurimus_term` messages, and the composed frame read from the render sub-app.
 `tests/support/mod.rs` carries those helpers, copied from plurimus's unpublished
 `plurimus_test`, plus two scratch directories from `tempfile`, one of them with
 more entries than the list has rows, and `spawn_picker_with`, which spawns a

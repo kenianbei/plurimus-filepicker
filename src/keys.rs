@@ -2,16 +2,19 @@ use std::path::MAIN_SEPARATOR_STR;
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, ResMut, With, Without};
+use bevy_ecs::prelude::{
+    Commands, Component, Entity, MessageWriter, On, Query, Res, ResMut, With, Without,
+};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
 use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::{KeyModifiers, LastCopied, PasteMessage, TerminalRequest};
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_ui::{
     Click, ComputedDisabled, Key, KeyBinding, ModalDismiss, PointerPress, PressFocusDisabled,
     ValueChange, first_bound,
 };
-use plurimus_widgets::{ActiveDescendant, ListBox, TextInputKeys};
+use plurimus_widgets::{ActiveDescendant, ListBox, TextInputAction, TextInputKeys};
 
 use crate::listing::{Entry, Listing};
 use crate::parts::PickerList;
@@ -41,7 +44,9 @@ pub enum FilePickerAction {
 /// The picker's key bindings, scanned first to last.
 ///
 /// The child list takes `Up`, `Down`, `PageUp` and `PageDown` before these
-/// are consulted, and the field takes whatever these leave.
+/// are consulted, and the field's [`TextInputKeys`] get whatever these
+/// leave. A key bound in both is the picker's: by default plain `Left`
+/// climbs and `Right` completes, while their shifted forms select.
 #[derive(Component, Debug, Clone)]
 pub struct FilePickerKeys(pub Vec<(KeyBinding, FilePickerAction)>);
 
@@ -80,6 +85,8 @@ pub(crate) struct PickerAccess<'w, 's> {
     cursors: Query<'w, 's, &'static ActiveDescendant>,
     entries: Query<'w, 's, &'static Entry>,
     commands: Commands<'w, 's>,
+    requests: MessageWriter<'w, TerminalRequest>,
+    copied: Res<'w, LastCopied>,
 }
 
 impl PickerAccess<'_, '_> {
@@ -148,6 +155,36 @@ impl PickerAccess<'_, '_> {
         let suffix = if entry.is_dir { MAIN_SEPARATOR_STR } else { "" };
         state.replace_filter(&format!("{}{suffix}", entry.name));
     }
+
+    /// The field's turn at a key, answering whether it took it. The
+    /// clipboard's three are the host's to carry out, and taken regardless.
+    fn edit(&mut self, picker: Entity, input: &KeyboardInput, held: KeyModifiers) -> bool {
+        let Ok((mut state, _, keys, ..)) = self.pickers.get_mut(picker) else {
+            return false;
+        };
+        let field = state.bypass_change_detection().field_mut();
+        let (is_taken, is_edited) = match first_bound(&keys.0, input, held) {
+            Some(TextInputAction::Paste) => {
+                let copied = self.copied.0.as_deref();
+                (true, copied.is_some_and(|copied| field.paste(copied)))
+            }
+            Some(action @ (TextInputAction::Copy | TextInputAction::Cut)) => {
+                if let Some(selected) = field.selected_text() {
+                    self.requests.write(TerminalRequest::copy(selected));
+                }
+                let is_cut = action == TextInputAction::Cut;
+                (true, is_cut && field.delete_selection())
+            }
+            _ => {
+                let is_taken = field.handle(keys, input, held);
+                (is_taken, is_taken)
+            }
+        };
+        if is_edited {
+            state.set_changed();
+        }
+        is_taken
+    }
 }
 
 /// The picker's bindings first, then the field for whatever is left, so an
@@ -167,16 +204,26 @@ pub(crate) fn file_picker_key(
         access.apply(picker, action, input.input.repeat);
         return;
     }
-    let Ok((mut state, _, field_keys, ..)) = access.pickers.get_mut(picker) else {
+    if access.edit(picker, &input.input, held) {
+        input.propagate(false);
+    }
+}
+
+/// A bracketed paste goes into the field at the caret, as typing does.
+pub(crate) fn file_picker_paste(
+    mut input: On<FocusedInput<PasteMessage>>,
+    mut access: PickerAccess,
+) {
+    let Ok((mut state, ..)) = access.pickers.get_mut(input.focused_entity) else {
         return;
     };
+    input.propagate(false);
     if state
         .bypass_change_detection()
         .field_mut()
-        .handle(field_keys, &input.input, held)
+        .paste(&input.input.0)
     {
         state.set_changed();
-        input.propagate(false);
     }
 }
 

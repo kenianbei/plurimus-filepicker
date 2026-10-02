@@ -19,6 +19,11 @@ const DEFAULT_PROMPT: &str = "> ";
 /// the directory listed, joined to the base when relative; everything after
 /// it filters the entries. `..`, `~`, and an absolute path are ordinary
 /// text, which is what makes traversal free.
+///
+/// The field is edited through the picker's [`TextInputKeys`]: they move
+/// the caret and select, copy and cut the selection as a `TerminalRequest`,
+/// and paste `LastCopied`. A bracketed paste goes in at the caret. The
+/// selection is drawn in `UiTheme::selection`, focused or not.
 #[derive(Component, Debug, Clone)]
 #[require(
     Hovered,

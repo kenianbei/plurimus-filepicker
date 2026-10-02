@@ -66,6 +66,7 @@ impl Plugin for FilePickerPlugin {
             style::style_file_pickers.in_set(WidgetSystems::Style),
         );
         app.add_observer(keys::file_picker_key);
+        app.add_observer(keys::file_picker_paste);
         app.add_observer(keys::file_picker_press);
         app.add_observer(keys::file_picker_click);
     }

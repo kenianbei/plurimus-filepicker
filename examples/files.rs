@@ -1,7 +1,8 @@
 //! A file picker over the current directory in a modal pane. Type to
 //! filter, Up/Down move, Enter descends or chooses, Left climbs, Tab
-//! completes, Ctrl+. shows hidden entries, Esc or ctrl-c quits. The chosen
-//! path is printed on exit.
+//! completes, Ctrl+. shows hidden entries, Esc or Ctrl+q quits. Ctrl+a
+//! selects the field and Ctrl+c copies it to the terminal's clipboard. The
+//! chosen path is printed on exit.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -38,13 +39,13 @@ fn main() {
     app.add_plugins((
         ScheduleRunnerPlugin::run_loop(FRAME_TICK),
         CorePlugin,
-        CrosstermPlugin::default(),
+        CrosstermPlugin::default().clipboard(true),
         FilePickerPlugin,
     ));
     app.init_resource::<Chosen>();
     app.add_systems(Startup, spawn);
     app.add_systems(PreUpdate, centre.before(UiSystems::Areas));
-    app.add_systems(Update, quit_on_ctrl_c);
+    app.add_systems(Update, quit_on_ctrl_q);
     app.add_observer(choose);
     app.add_observer(dismiss);
     app.run();
@@ -111,9 +112,10 @@ fn dismiss(_dismissed: On<ModalDismiss>, mut exit: MessageWriter<AppExit>) {
     exit.write(AppExit::Success);
 }
 
-fn quit_on_ctrl_c(mut keys: MessageReader<KeyMessage>, mut exit: MessageWriter<AppExit>) {
+// Ctrl+c is the picker's: it copies the field's selection.
+fn quit_on_ctrl_q(mut keys: MessageReader<KeyMessage>, mut exit: MessageWriter<AppExit>) {
     for key in keys.read() {
-        if key.kind == KeyKind::Press && key.modifiers.ctrl && key.code == KeyCode::Char('c') {
+        if key.kind == KeyKind::Press && key.modifiers.ctrl && key.code == KeyCode::Char('q') {
             exit.write(AppExit::Success);
         }
     }

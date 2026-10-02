@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::prelude::{Query, Res};
 use plurimus_core::UiWidget;
@@ -30,8 +32,8 @@ type Pickers<'w, 's> = Query<
     Stylable<FilePicker>,
 >;
 
-/// Draws the field row: prompt, text, and a caret while the picker's list
-/// holds focus, scrolled so the caret stays in view.
+/// Draws the field row: prompt, text, and the selection or, with none and
+/// the picker's list focused, a caret; scrolled so the cursor stays in view.
 pub(crate) fn style_file_pickers(
     theme: Res<UiTheme>,
     focus: Res<InputFocus>,
@@ -44,8 +46,13 @@ pub(crate) fn style_file_pickers(
         if !cache.redraws(next, theme.is_changed() || look.is_changed()) {
             continue;
         }
-        let caret = is_focused.then_some(theme.caret);
-        let (line, caret_end) = field_line(&look.prompt, picker.field(), caret);
+        let field = picker.field();
+        let under_caret = field.cursor()..field.cursor() + 1;
+        let mark = field
+            .selection()
+            .map(|selected| (selected, theme.selection))
+            .or_else(|| is_focused.then_some((under_caret, theme.caret)));
+        let (line, caret_end) = field_line(&look.prompt, field, mark);
         let scroll = caret_end.saturating_sub(usize::from(area.0.width));
         let paragraph = Paragraph::new(line)
             .style(next.style(&theme))
@@ -54,29 +61,35 @@ pub(crate) fn style_file_pickers(
     }
 }
 
-/// The row's line and the column just past the caret, for scrolling.
+/// The row's line, the chars of `mark` in its style, and the column just
+/// past the cursor, for scrolling. A mark past the text's end is one blank.
 fn field_line(
     prompt: &Line<'static>,
     field: &TextInput,
-    caret: Option<Style>,
+    mark: Option<(Range<usize>, Style)>,
 ) -> (Line<'static>, usize) {
     let value = field.value();
-    let at = value
-        .char_indices()
-        .nth(field.cursor())
-        .map_or(value.len(), |(index, _)| index);
-    let (before, rest) = value.split_at(at);
+    let byte_at = |index: usize| {
+        value
+            .char_indices()
+            .nth(index)
+            .map_or(value.len(), |(byte, _)| byte)
+    };
     let mut line = prompt.clone();
-    line.push_span(Span::raw(before.to_owned()));
-    let caret_end = line.width() + CARET_CELLS;
-    match caret {
-        Some(caret) => {
-            let mut after = rest.chars();
-            let under = after.next().unwrap_or(' ');
-            line.push_span(Span::styled(under.to_string(), caret));
-            line.push_span(Span::raw(after.as_str().to_owned()));
-        }
-        None => line.push_span(Span::raw(rest.to_owned())),
-    }
+    let before_cursor = Span::raw(&value[..byte_at(field.cursor())]).width();
+    let caret_end = line.width() + before_cursor + CARET_CELLS;
+    let Some((chars, style)) = mark else {
+        line.push_span(Span::raw(value.to_owned()));
+        return (line, caret_end);
+    };
+    let (start, end) = (byte_at(chars.start), byte_at(chars.end));
+    let marked = if start == end {
+        " "
+    } else {
+        &value[start..end]
+    };
+    line.push_span(Span::raw(value[..start].to_owned()));
+    line.push_span(Span::styled(marked.to_owned(), style));
+    line.push_span(Span::raw(value[end..].to_owned()));
     (line, caret_end)
 }
