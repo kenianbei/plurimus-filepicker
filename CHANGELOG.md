@@ -12,6 +12,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with it; one left on 0.7 resolves two copies of plurimus, and the picker's
   components do not match the app's.
 
+### Fixed
+
+- A listing opens at its top. One that replaced a scrolled listing kept its
+  scroll, so climbing out of a long directory, entering one, or typing a filter
+  could open with `../` scrolled off above the cursor.
+
 ## [0.1.1] - 2026-09-27
 
 ### Added

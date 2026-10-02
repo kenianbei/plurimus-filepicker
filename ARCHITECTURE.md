@@ -110,9 +110,11 @@ frame ahead of the engine's row passes:
    list is set, directories always), ranks them through `matching::find_match`
    stably on score, spawns a row per hit with the matched characters styled and
    a separator suffix on a directory, dims hidden rows, lays a file's decoration
-   over its row, appends the typed row when the look accepts a new name, and
-   writes `ActiveDescendant` to the first row that is not `..`, or to the first
-   row.
+   over its row, appends the typed row when the look accepts a new name, writes
+   `ActiveDescendant` to the first row that is not `..`, or to the first row,
+   and puts the list's `ScrollOffset` back at the origin through `apply_offset`,
+   so a scroll from the rows it replaced does not carry over; the engine's
+   reveal of the cursor's row still follows in `WidgetSystems::Layout`.
 3. `place_file_picker_parts` runs when the root's area, order, or list changed.
    It cuts the root's area with `layout::split_area` into the one-row field and
    the rest, and writes the list's `ComputedWidgetArea`, `UiArea::Fixed` through
@@ -160,7 +162,8 @@ Tests drive a full `App` headlessly: `CorePlugin` and `FilePickerPlugin`, a
 `TerminalCamera`, a `TerminalSize`, keys and mouse written as `plurimus_term`
 messages, and the composed frame read from the render sub-app.
 `tests/support/mod.rs` carries those helpers, copied from plurimus's unpublished
-`plurimus_test`, plus a scratch directory from `tempfile` and
-`spawn_picker_with`, which spawns a picker with more components from its first
-frame. `tests/source.rs` lists an in-memory `DirectorySource` with no working
-directory; the `tempfile` tests are the disk's.
+`plurimus_test`, plus two scratch directories from `tempfile`, one of them with
+more entries than the list has rows, and `spawn_picker_with`, which spawns a
+picker with more components from its first frame. `tests/source.rs` lists an
+in-memory `DirectorySource` with no working directory; the `tempfile` tests are
+the disk's.
