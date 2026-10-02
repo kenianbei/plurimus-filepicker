@@ -20,10 +20,10 @@ const DEFAULT_PROMPT: &str = "> ";
 /// it filters the entries. `..`, `~`, and an absolute path are ordinary
 /// text, which is what makes traversal free.
 ///
-/// The field edits as an `EditableText` does, through the picker's
-/// [`TextInputKeys`]: it moves and selects, copies and cuts the selection
-/// as a `TerminalRequest`, pastes `LastCopied`, and takes a bracketed paste
-/// at the caret. The selection is drawn in `UiTheme::selection`.
+/// The field is edited through the picker's [`TextInputKeys`]: they move
+/// the caret and select, copy and cut the selection as a `TerminalRequest`,
+/// and paste `LastCopied`. A bracketed paste goes in at the caret. The
+/// selection is drawn in `UiTheme::selection`, focused or not.
 #[derive(Component, Debug, Clone)]
 #[require(
     Hovered,

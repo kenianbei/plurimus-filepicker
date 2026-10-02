@@ -47,11 +47,11 @@ pub(crate) fn style_file_pickers(
             continue;
         }
         let field = picker.field();
-        let caret = field.cursor()..field.cursor() + 1;
+        let under_caret = field.cursor()..field.cursor() + 1;
         let mark = field
             .selection()
             .map(|selected| (selected, theme.selection))
-            .or_else(|| is_focused.then_some((caret, theme.caret)));
+            .or_else(|| is_focused.then_some((under_caret, theme.caret)));
         let (line, caret_end) = field_line(&look.prompt, field, mark);
         let scroll = caret_end.saturating_sub(usize::from(area.0.width));
         let paragraph = Paragraph::new(line)

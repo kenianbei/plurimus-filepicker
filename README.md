@@ -38,7 +38,7 @@ the current directory in a modal pane.
 | Ctrl+.                     | toggles hidden entries                       |
 | Esc                        | triggers `ModalDismiss` on the picker        |
 
-The field edits like any plurimus text field:
+The field takes a plurimus text field's keys:
 
 | key                              | does                                     |
 | -------------------------------- | ---------------------------------------- |
