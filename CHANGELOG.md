@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** the crate requires plurimus 0.9, which is built on bevy 0.20,
+  and Rust 1.97.1. An app moves to plurimus 0.9 and bevy 0.20 with it. If an app
+  stays on plurimus 0.8, cargo resolves two copies of plurimus, and the picker's
+  components do not match the app's.
+- The published crate no longer ships the repository's CI workflow, lint and
+  formatter configs, or toolchain file. The source, tests, example and docs
+  still ship.
+
 ## [0.2.0] - 2026-10-01
 
 ### Added
