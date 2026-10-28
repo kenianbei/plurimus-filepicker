@@ -15,8 +15,8 @@ itself.
 
 ```toml
 [dependencies]
-plurimus = { version = "0.8", features = ["widgets"] }
-plurimus_filepicker = "0.2"
+plurimus = { version = "0.9", features = ["widgets"] }
+plurimus_filepicker = "0.3"
 ```
 
 ```rust,ignore
@@ -83,6 +83,7 @@ spawn.
 
 | plurimus_filepicker | plurimus | bevy |
 | ------------------- | -------- | ---- |
+| 0.3                 | 0.9      | 0.20 |
 | 0.2                 | 0.8      | 0.19 |
 | 0.1                 | 0.7      | 0.19 |
 
