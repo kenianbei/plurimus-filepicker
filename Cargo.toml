@@ -2,7 +2,7 @@
 name = "plurimus_filepicker"
 description = "A file picker widget for plurimus: a path field over a filtered directory listing."
 documentation = "https://docs.rs/plurimus_filepicker"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Norman Kerr"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -10,19 +10,29 @@ repository = "https://github.com/kenianbei/plurimus-filepicker"
 readme = "README.md"
 keywords = ["bevy", "ratatui", "tui", "terminal", "widget"]
 categories = ["command-line-interface", "gui"]
-rust-version = "1.95"
+rust-version = "1.97.1"
+exclude = [
+  ".github/",
+  ".gitignore",
+  ".markdownlint-cli2.jsonc",
+  ".prettierrc.json",
+  "clippy.toml",
+  "deny.toml",
+  "rust-toolchain.toml",
+  "typos.toml",
+]
 
 [dependencies]
-bevy_app = "0.19"
-bevy_ecs = "0.19"
-bevy_input = { version = "0.19", features = ["keyboard", "mouse"] }
-plurimus_core = "0.8.0"
-plurimus_term = "0.8.0"
-plurimus_ui = "0.8.0"
-plurimus_widgets = "0.8.0"
+bevy_app = "0.20"
+bevy_ecs = "0.20"
+bevy_input = { version = "0.20", features = ["keyboard", "mouse"] }
+plurimus_core = "0.9.0"
+plurimus_term = "0.9.0"
+plurimus_ui = "0.9.0"
+plurimus_widgets = "0.9.0"
 
 [dev-dependencies]
-plurimus_crossterm = "0.8.0"
+plurimus_crossterm = "0.9.0"
 tempfile = "3"
 
 [profile.dev.package."*"]
