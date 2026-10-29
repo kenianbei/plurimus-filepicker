@@ -144,8 +144,11 @@ impl PickerAccess<'_, '_> {
             return;
         };
         let chosen = state.resolved_directory().join(&entry.name);
-        self.commands
-            .trigger(ValueChange::new(picker, chosen, true));
+        self.commands.trigger(ValueChange {
+            source: picker,
+            value: chosen,
+            is_final: true,
+        });
     }
 
     fn complete(&mut self, picker: Entity) {

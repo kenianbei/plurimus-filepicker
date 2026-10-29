@@ -65,3 +65,10 @@ type_complexity = "allow"
 
 # A two-arm match on a bool is a value match; house style.
 match_bool = "allow"
+
+[patch.crates-io]
+plurimus_core = { path = "../plurimus/crates/plurimus_core" }
+plurimus_term = { path = "../plurimus/crates/plurimus_term" }
+plurimus_ui = { path = "../plurimus/crates/plurimus_ui" }
+plurimus_widgets = { path = "../plurimus/crates/plurimus_widgets" }
+plurimus_crossterm = { path = "../plurimus/crates/plurimus_crossterm" }
