@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- The picker's parts are entities a host can reach. `FilePickerParts` on the
+  picker names its field and its list, marked `FilePickerField` and
+  `FilePickerList`; `FilePicker::new(base).with_path(..)` opens the field on a
+  path; `FilePickerCommand`, an entity event carrying a `FilePickerAction`,
+  applies an action from outside as the bound key would, so a host's own double
+  click on a row can be `Enter`.
+- The field publishes its caret to the terminal, so screen readers and input
+  methods see it, and takes the pointer: a press places the caret, a drag or a
+  shifted press selects, a double press takes a word and a triple everything.
+  The caret covers a grapheme cluster at its width.
+
+### Changed
+
+- **Breaking:** the path field is a child entity carrying plurimus's
+  `EditableText`, edited and drawn by the engine, and it holds the picker's
+  focus and tab stop where the list did. `FilePicker::path` and `set_path` are
+  gone: read and write the field's `TextInput` through `FilePickerParts`.
+  `FilePicker::directory` and `filter` take the field's text. Focus given to the
+  picker still lands inside it, on the field; a press on the picker or a row
+  focuses the field too.
+- The field's keys are the picker's `TextInputKeys` less every key
+  `FilePickerKeys` binds, copied onto the field whenever either changes, so a
+  key bound in both stays the picker's. Up, Down, PageUp and PageDown reach the
+  list from the field through plurimus's `ListBoxAccess`, consumed only while
+  they move the cursor.
+- The field's selection ends when it loses focus, as every plurimus field's
+  does, including through a focus set on the picker itself, which passes through
+  the field; it stayed before.
+- **Breaking:** the crate requires the plurimus that carries `ListBoxAccess`,
+  after 0.9.0.
+
 ## [0.3.0] - 2026-10-27
 
 ### Changed
