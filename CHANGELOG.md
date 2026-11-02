@@ -33,6 +33,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   key bound in both stays the picker's. Up, Down, PageUp and PageDown reach the
   list from the field through plurimus's `ListBoxAccess`, consumed only while
   they move the cursor.
+- A held Enter acts once: a key repeat no longer descends again into the
+  directory the first press opened.
 - The field's selection ends when it loses focus, as every plurimus field's
   does, including through a focus set on the picker itself, which passes through
   the field; it stayed before.
