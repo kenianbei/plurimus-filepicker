@@ -11,8 +11,8 @@ use plurimus_term::{KeyCode, LastCopied, ModifierKey};
 use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{InteractionDisabled, UiTheme};
 use support::{
-    Heard, ROWS, app, composed_styled_frame, listening_parent, paste, picker, press_chord,
-    press_key, row_texts, scratch, spawn_picker, spawn_picker_with, type_text,
+    Heard, ROWS, app, composed_styled_frame, listening_parent, paste, path, press_chord, press_key,
+    row_texts, scratch, spawn_picker, spawn_picker_with, type_text,
 };
 
 /// The field row's first cells: the two of the prompt, `ab`, and one more.
@@ -48,7 +48,7 @@ fn a_paste_lands_in_the_field_and_filters() {
 
     paste(&mut app, "sub/in");
 
-    assert_eq!(picker(&app, entity).path(), "sub/in");
+    assert_eq!(path(&app, entity), "sub/in");
     assert_eq!(row_texts(&app), ["inner.rs"]);
 }
 
@@ -62,7 +62,7 @@ fn a_paste_replaces_the_selection() {
 
     paste(&mut app, "sub/");
 
-    assert_eq!(picker(&app, entity).path(), "sub/");
+    assert_eq!(path(&app, entity), "sub/");
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn a_disabled_picker_takes_no_paste() {
 
     paste(&mut app, "ab");
 
-    assert_eq!(picker(&app, entity).path(), "");
+    assert_eq!(path(&app, entity), "");
 }
 
 #[test]
@@ -86,11 +86,11 @@ fn copy_sends_the_selection_and_paste_inserts_it() {
     ctrl(&mut app, 'a');
     ctrl(&mut app, 'c');
     assert_eq!(last_copied(&app), Some("ab"));
-    assert_eq!(picker(&app, entity).path(), "ab");
+    assert_eq!(path(&app, entity), "ab");
 
     press_key(&mut app, KeyCode::End);
     ctrl(&mut app, 'v');
-    assert_eq!(picker(&app, entity).path(), "abab");
+    assert_eq!(path(&app, entity), "abab");
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn cut_sends_the_selection_and_deletes_it() {
     ctrl(&mut app, 'x');
 
     assert_eq!(last_copied(&app), Some("ab"));
-    assert_eq!(picker(&app, entity).path(), "");
+    assert_eq!(path(&app, entity), "");
 }
 
 #[test]

@@ -1,24 +1,20 @@
 use std::path::MAIN_SEPARATOR_STR;
 
-use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{
-    Commands, Component, Entity, MessageWriter, On, Query, Res, ResMut, With, Without,
-};
+use bevy_ecs::prelude::{Commands, Component, Entity, On, ParamSet, Query, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
 use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_term::{KeyModifiers, LastCopied, PasteMessage, TerminalRequest};
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_ui::{
     Click, ComputedDisabled, Key, KeyBinding, ModalDismiss, PointerPress, PressFocusDisabled,
     ValueChange, first_bound,
 };
-use plurimus_widgets::{ActiveDescendant, ListBox, TextInputAction, TextInputKeys};
+use plurimus_widgets::{ActiveDescendant, ListBoxAccess, ListBoxKeys, TextInput};
 
 use crate::listing::{Entry, Listing};
-use crate::parts::PickerList;
-use crate::path::{directory_text, normalize};
+use crate::parts::{FilePickerField, FilePickerList, FilePickerParts};
+use crate::path::{directory_text, normalize, with_filter};
 use crate::picker::{FilePicker, FilePickerLook};
 
 const TOGGLE_HIDDEN_CHARACTER: &str = ".";
@@ -43,13 +39,13 @@ pub enum FilePickerAction {
 
 /// The picker's key bindings, scanned first to last.
 ///
-/// The child list takes `Up`, `Down`, `PageUp` and `PageDown` before these
-/// are consulted, while they move its cursor. One that cannot, on the first
-/// row or the last, is scanned here as any other key is, and with no binding
-/// bubbles on to the picker's ancestors. The field's [`TextInputKeys`] get
-/// whatever these leave. A key bound in both is the picker's: by default
-/// plain `Left` climbs and `Right` completes, while their shifted forms
-/// select.
+/// A key reaches the picker by bubbling from its focused field, which took
+/// its turn first with the picker's `TextInputKeys` less every key bound
+/// here, so a key bound in both is the picker's: by default plain `Left`
+/// climbs and `Right` completes, while their shifted forms select. What
+/// these leave goes to the list's `Up`, `Down`, `PageUp` and `PageDown`,
+/// kept while they move its cursor; one that cannot, on the first row or the
+/// last, bubbles on to the picker's ancestors.
 #[derive(Component, Debug, Clone)]
 pub struct FilePickerKeys(pub Vec<(KeyBinding, FilePickerAction)>);
 
@@ -76,20 +72,18 @@ pub(crate) struct PickerAccess<'w, 's> {
         'w,
         's,
         (
-            &'static mut FilePicker,
+            &'static FilePicker,
             &'static FilePickerKeys,
-            &'static TextInputKeys,
-            &'static PickerList,
+            &'static FilePickerParts,
             &'static mut FilePickerLook,
             &'static Listing,
         ),
         Without<ComputedDisabled>,
     >,
+    fields: Query<'w, 's, &'static mut TextInput, With<FilePickerField>>,
     cursors: Query<'w, 's, &'static ActiveDescendant>,
     entries: Query<'w, 's, &'static Entry>,
     commands: Commands<'w, 's>,
-    requests: MessageWriter<'w, TerminalRequest>,
-    copied: Res<'w, LastCopied>,
 }
 
 impl PickerAccess<'_, '_> {
@@ -108,25 +102,27 @@ impl PickerAccess<'_, '_> {
     }
 
     fn cursor_entry(&self, picker: Entity) -> Option<Entry> {
-        let (_, _, _, list, ..) = self.pickers.get(picker).ok()?;
-        let row = self.cursors.get(list.0).ok()?.0?;
+        let (_, _, parts, ..) = self.pickers.get(picker).ok()?;
+        let row = self.cursors.get(parts.list).ok()?.0?;
         self.entries.get(row).ok().cloned()
     }
 
     fn go_to_parent(&mut self, picker: Entity) {
-        let Ok((mut state, .., listing)) = self.pickers.get_mut(picker) else {
+        let Ok((state, _, parts, _, listing)) = self.pickers.get(picker) else {
             return;
         };
         if !listing.has_parent {
             return;
         }
+        let Ok(mut text) = self.fields.get_mut(parts.field) else {
+            return;
+        };
         let parent = normalize(
             &state
-                .resolved_directory()
+                .resolved_directory(text.value())
                 .join(std::path::Component::ParentDir),
         );
-        let text = directory_text(&parent, state.base());
-        state.set_path(text);
+        *text = TextInput::new(directory_text(&parent, state.base()));
     }
 
     fn enter(&mut self, picker: Entity, is_repeat: bool) {
@@ -140,10 +136,13 @@ impl PickerAccess<'_, '_> {
         if is_repeat {
             return;
         }
-        let Ok((state, ..)) = self.pickers.get(picker) else {
+        let Ok((state, _, parts, ..)) = self.pickers.get(picker) else {
             return;
         };
-        let chosen = state.resolved_directory().join(&entry.name);
+        let Ok(text) = self.fields.get(parts.field) else {
+            return;
+        };
+        let chosen = state.resolved_directory(text.value()).join(&entry.name);
         self.commands.trigger(ValueChange {
             source: picker,
             value: chosen,
@@ -155,99 +154,67 @@ impl PickerAccess<'_, '_> {
         let Some(entry) = self.cursor_entry(picker) else {
             return;
         };
-        let Ok((mut state, ..)) = self.pickers.get_mut(picker) else {
+        let Ok((_, _, parts, ..)) = self.pickers.get(picker) else {
+            return;
+        };
+        let Ok(mut text) = self.fields.get_mut(parts.field) else {
             return;
         };
         let suffix = if entry.is_dir { MAIN_SEPARATOR_STR } else { "" };
-        state.replace_filter(&format!("{}{suffix}", entry.name));
-    }
-
-    /// The field's turn at a key, answering whether it took it. The
-    /// clipboard's three are the host's to carry out, and taken regardless.
-    fn edit(&mut self, picker: Entity, input: &KeyboardInput, held: KeyModifiers) -> bool {
-        let Ok((mut state, _, keys, ..)) = self.pickers.get_mut(picker) else {
-            return false;
-        };
-        let field = state.bypass_change_detection().field_mut();
-        let (is_taken, is_edited) = match first_bound(&keys.0, input, held) {
-            Some(TextInputAction::Paste) => {
-                let copied = self.copied.0.as_deref();
-                (true, copied.is_some_and(|copied| field.paste(copied)))
-            }
-            Some(action @ (TextInputAction::Copy | TextInputAction::Cut)) => {
-                if let Some(selected) = field.selected_text() {
-                    self.requests.write(TerminalRequest::copy(selected));
-                }
-                let is_cut = action == TextInputAction::Cut;
-                (true, is_cut && field.delete_selection())
-            }
-            _ => {
-                let is_taken = field.handle(keys, input, held);
-                (is_taken, is_taken)
-            }
-        };
-        if is_edited {
-            state.set_changed();
-        }
-        is_taken
+        let name = format!("{}{suffix}", entry.name);
+        *text = TextInput::new(with_filter(text.value(), &name));
     }
 }
 
-/// The picker's bindings first, then the field for whatever is left, so an
-/// unbound character types. Reached by bubbling from the focused child list.
+/// The picker's bindings first, then the list's for whatever is left.
+/// Reached by bubbling from the focused field, which has typed what it took.
 pub(crate) fn file_picker_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
-    mut access: PickerAccess,
+    list_keys: Query<&ListBoxKeys>,
+    mut access: ParamSet<(PickerAccess, ListBoxAccess)>,
 ) {
     let picker = input.focused_entity;
-    let Ok((_, keys, ..)) = access.pickers.get(picker) else {
-        return;
-    };
     let held = held.get();
-    if let Some(action) = first_bound(&keys.0, &input.input, held) {
-        input.propagate(false);
-        access.apply(picker, action, input.input.repeat);
-        return;
-    }
-    if access.edit(picker, &input.input, held) {
-        input.propagate(false);
-    }
-}
-
-/// A bracketed paste goes into the field at the caret, as typing does.
-pub(crate) fn file_picker_paste(
-    mut input: On<FocusedInput<PasteMessage>>,
-    mut access: PickerAccess,
-) {
-    let Ok((mut state, ..)) = access.pickers.get_mut(input.focused_entity) else {
+    let list = {
+        let mut pickers = access.p0();
+        let Ok((_, keys, parts, ..)) = pickers.pickers.get(picker) else {
+            return;
+        };
+        let (bound, list) = (first_bound(&keys.0, &input.input, held), parts.list);
+        if let Some(action) = bound {
+            input.propagate(false);
+            pickers.apply(picker, action, input.input.repeat);
+            return;
+        }
+        list
+    };
+    let Ok(keys) = list_keys.get(list) else {
         return;
     };
-    input.propagate(false);
-    if state
-        .bypass_change_detection()
-        .field_mut()
-        .paste(&input.input.0)
+    if let Some(action) = first_bound(&keys.0, &input.input, held)
+        && access.p1().apply(list, action)
     {
-        state.set_changed();
+        input.propagate(false);
     }
 }
 
-/// A press on the field row focuses the picker's list.
+/// A press on the picker's own cells, the prompt and any gap, focuses its
+/// field; presses on the field and the list are the engine's.
 pub(crate) fn file_picker_press(
     press: On<PointerPress>,
-    lists: Query<&PickerList, Without<PressFocusDisabled>>,
+    parts: Query<&FilePickerParts, Without<PressFocusDisabled>>,
     mut focus: ResMut<InputFocus>,
 ) {
-    if let Ok(list) = lists.get(press.entity) {
-        focus.set(list.0, FocusCause::Pressed);
+    if let Ok(parts) = parts.get(press.entity) {
+        focus.set(parts.field, FocusCause::Pressed);
     }
 }
 
 /// A double click on a row is `Enter` on it.
 pub(crate) fn file_picker_click(
     click: On<Click>,
-    lists: Query<&ChildOf, With<ListBox>>,
+    lists: Query<&ChildOf, With<FilePickerList>>,
     mut access: PickerAccess,
 ) {
     if click.count < DOUBLE_CLICK {

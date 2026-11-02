@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 
 use core::fmt::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use bevy_app::App;
 use bevy_ecs::bundle::Bundle;
@@ -17,14 +17,14 @@ use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
-use plurimus_filepicker::{FilePicker, FilePickerPlugin, file_picker};
+use plurimus_filepicker::{FilePicker, FilePickerParts, FilePickerPlugin, file_picker};
 use plurimus_term::{
     KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind, MouseMessage,
     PasteMessage,
 };
 use plurimus_ui::UiArea;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
-use plurimus_widgets::{ActiveDescendant, ListBox};
+use plurimus_widgets::{ActiveDescendant, TextInput};
 
 pub const COLS: u16 = 20;
 pub const ROWS: u16 = 8;
@@ -87,11 +87,12 @@ pub fn focused(app: &App) -> Option<Entity> {
     app.world().resource::<InputFocus>().get()
 }
 
+/// Replaces the field's text, caret at the end, as an app would.
 pub fn set_path(app: &mut App, picker: Entity, path: &str) {
+    let field = field_of(app, picker);
     app.world_mut()
-        .get_mut::<FilePicker>(picker)
-        .unwrap()
-        .set_path(path);
+        .entity_mut(field)
+        .insert(TextInput::new(path));
     app.update();
 }
 
@@ -99,20 +100,35 @@ pub fn picker(app: &App, entity: Entity) -> &FilePicker {
     app.world().get::<FilePicker>(entity).unwrap()
 }
 
+/// The field's text as typed.
+pub fn path(app: &App, picker: Entity) -> &str {
+    app.world()
+        .get::<TextInput>(field_of(app, picker))
+        .unwrap()
+        .value()
+}
+
+/// The directory the picker lists.
+pub fn directory(app: &App, picker: Entity) -> PathBuf {
+    self::picker(app, picker).directory(path(app, picker))
+}
+
+fn parts(app: &App, picker: Entity) -> FilePickerParts {
+    *app.world()
+        .get::<FilePickerParts>(picker)
+        .expect("the picker spawned its parts")
+}
+
+pub fn field_of(app: &App, picker: Entity) -> Entity {
+    parts(app, picker).field
+}
+
 pub fn cursor(app: &App, list: Entity) -> Option<Entity> {
     app.world().get::<ActiveDescendant>(list).unwrap().0
 }
 
-pub fn list_of(app: &mut App, picker: Entity) -> Entity {
-    app.world_mut()
-        .query_filtered::<Entity, bevy_ecs::prelude::With<ListBox>>()
-        .iter(app.world())
-        .find(|&list| {
-            app.world()
-                .get::<bevy_ecs::hierarchy::ChildOf>(list)
-                .is_some_and(|child_of| child_of.parent() == picker)
-        })
-        .expect("the picker spawned its list")
+pub fn list_of(app: &App, picker: Entity) -> Entity {
+    parts(app, picker).list
 }
 
 /// A scratch directory with `sub/`, `Zeta/`, `a.txt`, `b.txt`, `.hidden`.

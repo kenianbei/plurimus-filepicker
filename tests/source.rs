@@ -16,7 +16,7 @@ use plurimus_filepicker::{
 };
 use plurimus_term::KeyCode;
 use plurimus_ui::ValueChange;
-use support::{picker, press_key, row_texts, set_path, spawn_picker_with, type_text};
+use support::{path, press_key, row_texts, set_path, spawn_picker_with, type_text};
 
 /// Directories and their entries, with no working directory.
 struct Workspace(BTreeMap<PathBuf, Vec<SourceEntry>>);
@@ -71,7 +71,7 @@ fn a_source_without_a_working_directory_still_climbs_to_its_root() {
     let entity = spawn_over(&mut app, "/plans", ());
 
     press_key(&mut app, KeyCode::Left);
-    assert_eq!(picker(&app, entity).path(), "/");
+    assert_eq!(path(&app, entity), "/");
     assert_eq!(row_texts(&app), ["plans/"]);
 }
 

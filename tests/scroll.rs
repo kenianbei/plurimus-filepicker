@@ -81,7 +81,7 @@ fn a_picker_placed_late_opens_at_its_top() {
     focus(&mut app, picker);
     app.update();
     app.update();
-    let list = list_of(&mut app, picker);
+    let list = list_of(&app, picker);
     assert_eq!(offset(&app, list), UNPLACED_OFFSET);
 
     app.world_mut()

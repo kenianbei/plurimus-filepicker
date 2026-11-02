@@ -9,13 +9,14 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use bevy_input::keyboard::Key;
-use plurimus_filepicker::FilePickerLook;
+use plurimus_filepicker::{FilePicker, FilePickerLook};
 use plurimus_term::{KeyCode, ModifierKey};
 use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{ModalDismiss, ValueChange};
 use support::{
-    Heard, click, cursor, focused, list_of, listening_parent, picker, press_chord, press_key,
-    repeat_key, rows, scratch, set_path, spawn_picker, spawn_picker_with, type_text,
+    Heard, click, cursor, directory, field_of, focused, list_of, listening_parent, path,
+    press_chord, press_key, repeat_key, rows, scratch, set_path, spawn_picker, spawn_picker_with,
+    type_text,
 };
 
 #[derive(Resource, Default)]
@@ -54,7 +55,7 @@ fn typing_filters_and_backspace_edits() {
     assert_eq!(rows(&app)[1], "> b.txt");
 
     press_key(&mut app, KeyCode::Backspace);
-    assert_eq!(picker(&app, entity).path(), "b");
+    assert_eq!(path(&app, entity), "b");
 }
 
 #[test]
@@ -62,7 +63,7 @@ fn down_moves_the_cursor_through_the_list() {
     let dir = scratch();
     let mut app = logged_app();
     let entity = spawn_picker(&mut app, dir.path());
-    let list = list_of(&mut app, entity);
+    let list = list_of(&app, entity);
     let children = app.world().get::<Children>(list).unwrap().to_vec();
 
     press_key(&mut app, KeyCode::Down);
@@ -101,7 +102,7 @@ fn enter_on_a_directory_descends() {
     let entity = spawn_picker(&mut app, dir.path());
 
     press_key(&mut app, KeyCode::Enter);
-    assert_eq!(picker(&app, entity).path(), "sub/");
+    assert_eq!(path(&app, entity), "sub/");
     assert_eq!(rows(&app)[2], "> inner.rs");
     assert_eq!(chosen(&app), []);
 }
@@ -127,11 +128,11 @@ fn complete_writes_the_cursor_entry_into_the_field() {
     let entity = spawn_picker(&mut app, dir.path());
 
     press_key(&mut app, KeyCode::Tab);
-    assert_eq!(picker(&app, entity).path(), "sub/");
+    assert_eq!(path(&app, entity), "sub/");
 
     type_text(&mut app, "in");
     press_key(&mut app, KeyCode::Right);
-    assert_eq!(picker(&app, entity).path(), "sub/inner.rs");
+    assert_eq!(path(&app, entity), "sub/inner.rs");
     assert_eq!(chosen(&app), []);
 }
 
@@ -141,16 +142,16 @@ fn left_climbs_and_backspace_on_an_empty_filter_edits() {
     let mut app = logged_app();
     let entity = spawn_picker(&mut app, dir.path());
     press_key(&mut app, KeyCode::Enter);
-    assert_eq!(picker(&app, entity).directory(), dir.path().join("sub"));
+    assert_eq!(directory(&app, entity), dir.path().join("sub"));
 
     press_key(&mut app, KeyCode::Left);
-    assert_eq!(picker(&app, entity).directory(), dir.path());
-    assert_eq!(picker(&app, entity).filter(), "");
+    assert_eq!(directory(&app, entity), dir.path());
+    assert_eq!(FilePicker::filter(path(&app, entity)), "");
 
     press_key(&mut app, KeyCode::Enter);
     press_key(&mut app, KeyCode::Backspace);
-    assert_eq!(picker(&app, entity).path(), "sub");
-    assert_eq!(picker(&app, entity).directory(), dir.path());
+    assert_eq!(path(&app, entity), "sub");
+    assert_eq!(directory(&app, entity), dir.path());
 }
 
 #[test]
@@ -161,11 +162,8 @@ fn enter_on_the_parent_row_climbs() {
 
     press_key(&mut app, KeyCode::Up);
     press_key(&mut app, KeyCode::Enter);
-    assert_eq!(
-        picker(&app, entity).directory(),
-        dir.path().parent().unwrap()
-    );
-    assert_eq!(picker(&app, entity).filter(), "");
+    assert_eq!(directory(&app, entity), dir.path().parent().unwrap());
+    assert_eq!(FilePicker::filter(path(&app, entity)), "");
     assert_eq!(chosen(&app), []);
 }
 
@@ -176,14 +174,11 @@ fn parent_climbs_above_the_base_and_stops_at_the_root() {
     let entity = spawn_picker(&mut app, dir.path());
 
     press_key(&mut app, KeyCode::Left);
-    assert_eq!(
-        picker(&app, entity).directory(),
-        dir.path().parent().unwrap()
-    );
+    assert_eq!(directory(&app, entity), dir.path().parent().unwrap());
 
     set_path(&mut app, entity, "/x");
     press_key(&mut app, KeyCode::Left);
-    assert_eq!(picker(&app, entity).path(), "/x", "nothing above the root");
+    assert_eq!(path(&app, entity), "/x", "nothing above the root");
 }
 
 #[test]
@@ -199,7 +194,7 @@ fn parent_over_a_relative_base_stops_at_the_root() {
     for _ in 0..depth + 2 {
         press_key(&mut app, KeyCode::Left);
     }
-    assert_eq!(picker(&app, entity).path(), "../".repeat(depth));
+    assert_eq!(path(&app, entity), "../".repeat(depth));
 }
 
 #[test]
@@ -233,17 +228,17 @@ fn escape_dismisses_the_picker_as_a_modal() {
 }
 
 #[test]
-fn pressing_the_field_row_focuses_the_list() {
+fn pressing_the_prompt_focuses_the_field() {
     let dir = scratch();
     let mut app = logged_app();
     let entity = spawn_picker(&mut app, dir.path());
-    let list = list_of(&mut app, entity);
+    let field = field_of(&app, entity);
     app.world_mut().resource_mut::<InputFocus>().clear();
     app.update();
     assert_eq!(focused(&app), None);
 
     click(&mut app, 1, 0);
-    assert_eq!(focused(&app), Some(list));
+    assert_eq!(focused(&app), Some(field));
 }
 
 #[test]
@@ -251,7 +246,7 @@ fn a_click_moves_the_cursor_and_a_double_click_chooses() {
     let dir = scratch();
     let mut app = logged_app();
     let entity = spawn_picker(&mut app, dir.path());
-    let list = list_of(&mut app, entity);
+    let list = list_of(&app, entity);
     let children = app.world().get::<Children>(list).unwrap().to_vec();
 
     click(&mut app, 3, 4);

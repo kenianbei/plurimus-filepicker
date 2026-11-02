@@ -3,15 +3,15 @@ use std::path::{MAIN_SEPARATOR_STR, Path, PathBuf};
 
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::hierarchy::{ChildOf, Children};
-use bevy_ecs::prelude::{Commands, Component, Entity, Mut, Query, Ref};
+use bevy_ecs::prelude::{Commands, Component, Entity, Query, Ref, With};
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_core::ratatui_core::text::{Line, Span};
 use plurimus_ui::{ScrollOffset, UiStyle, apply_offset};
-use plurimus_widgets::{ActiveDescendant, ListItemTrailing, list_item};
+use plurimus_widgets::{ActiveDescendant, ListItemTrailing, TextInput, list_item};
 
 use crate::matching::{Match, find_match, light_matches};
-use crate::parts::PickerList;
+use crate::parts::{FilePickerField, FilePickerParts};
 use crate::path::{directory_text, has_parent, or_current, resolve};
 use crate::picker::{
     FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, FilePickerMatchStyle,
@@ -67,18 +67,23 @@ pub(crate) struct BuiltRows {
 /// means what a relative field means.
 pub(crate) fn relist(
     mut pickers: Query<(
-        Mut<FilePicker>,
+        &FilePicker,
+        &FilePickerParts,
         Ref<FilePickerFloor>,
         Option<Ref<FilePickerDecorator>>,
         Option<Ref<FilePickerSource>>,
         &mut Listing,
     )>,
+    mut fields: Query<&mut TextInput, With<FilePickerField>>,
 ) {
-    for (mut picker, floor, decorator, source, mut listing) in &mut pickers {
+    for (picker, parts, floor, decorator, source, mut listing) in &mut pickers {
+        let Ok(mut text) = fields.get_mut(parts.field) else {
+            continue;
+        };
         let floor_changed = floor.is_changed();
         let is_reread = decorator.as_ref().is_some_and(DetectChanges::is_changed)
             || source.as_ref().is_some_and(DetectChanges::is_changed);
-        if !picker.is_changed() && !floor_changed && !is_reread {
+        if !text.is_changed() && !floor_changed && !is_reread {
             continue;
         }
         if is_reread {
@@ -88,12 +93,11 @@ pub(crate) fn relist(
             .0
             .as_deref()
             .map(|floor| resolve(floor, picker.base()));
-        let mut directory = picker.resolved_directory();
+        let mut directory = picker.resolved_directory(text.value());
         if let Some(floor) = &floor
             && !directory.starts_with(floor)
         {
-            let text = directory_text(floor, picker.base());
-            picker.set_path(text);
+            *text = TextInput::new(directory_text(floor, picker.base()));
             directory.clone_from(floor);
         }
         let is_read = listing.directory.as_ref() == Some(&directory);
@@ -145,19 +149,23 @@ fn read_entries(
 /// cursor on the first row that is not `..` and the list scrolled to its top.
 pub(crate) fn rebuild_rows(
     mut pickers: Query<(
-        &FilePicker,
         Ref<Listing>,
         Ref<FilePickerLook>,
         Ref<FilePickerMatchStyle>,
-        &PickerList,
+        &FilePickerParts,
         &mut BuiltRows,
     )>,
+    fields: Query<&TextInput, With<FilePickerField>>,
     rows: Query<&Children>,
     mut offsets: Query<&mut ScrollOffset>,
     mut commands: Commands,
 ) {
-    for (picker, listing, look, lit, list, mut built) in &mut pickers {
-        let filter = picker.filter();
+    for (listing, look, lit, parts, mut built) in &mut pickers {
+        let Ok(text) = fields.get(parts.field) else {
+            continue;
+        };
+        let list = parts.list;
+        let filter = FilePicker::filter(text.value());
         let is_stale =
             listing.is_changed() || look.is_changed() || lit.is_changed() || built.filter != filter;
         if !is_stale {
@@ -166,7 +174,7 @@ pub(crate) fn rebuild_rows(
         filter.clone_into(&mut built.filter);
         // Last child first: each despawn then pops the end of `Children`
         // instead of shifting everything after it.
-        let old_rows = rows.get(list.0).map(|rows| rows.iter().rev());
+        let old_rows = rows.get(list).map(|rows| rows.iter().rev());
         for &row in old_rows.into_iter().flatten() {
             commands.entity(row).despawn();
         }
@@ -179,16 +187,16 @@ pub(crate) fn rebuild_rows(
         });
         let ranked = ranked(parent.iter().chain(&listing.entries), filter, &look);
         let typed = typed_name(filter, &look, &listing.entries);
-        let mut cursor = spawn_rows(&mut commands, list.0, ranked, lit.0);
+        let mut cursor = spawn_rows(&mut commands, list, ranked, lit.0);
         if let Some(name) = typed {
-            cursor.get_or_insert(spawn_typed_row(&mut commands, list.0, name));
+            cursor.get_or_insert(spawn_typed_row(&mut commands, list, name));
         }
         if cursor.is_none() {
-            commands.spawn((list_item(NO_MATCH), UiStyle(DIM), ChildOf(list.0)));
+            commands.spawn((list_item(NO_MATCH), UiStyle(DIM), ChildOf(list)));
         }
-        commands.entity(list.0).insert(ActiveDescendant(cursor));
-        if let Ok(mut offset) = offsets.get_mut(list.0) {
-            apply_offset(list.0, Position::ORIGIN, &mut offset, &mut commands);
+        commands.entity(list).insert(ActiveDescendant(cursor));
+        if let Ok(mut offset) = offsets.get_mut(list) {
+            apply_offset(list, Position::ORIGIN, &mut offset, &mut commands);
         }
     }
 }

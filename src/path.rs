@@ -10,6 +10,11 @@ pub(crate) fn split_at_separator(text: &str) -> (&str, &str) {
 
 /// The directory the field names, with `~` expanded, resolved against
 /// `base`. Empty when it is a relative base itself; see [`resolve`].
+/// `text` with what follows its last separator replaced by `name`.
+pub(crate) fn with_filter(text: &str, name: &str) -> String {
+    format!("{}{name}", split_at_separator(text).0)
+}
+
 pub(crate) fn field_directory(text: &str, base: &Path) -> PathBuf {
     resolve(&expand_home(split_at_separator(text).0), base)
 }
