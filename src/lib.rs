@@ -43,7 +43,8 @@ impl Plugin for FilePickerPlugin {
             (
                 (
                     parts::install_file_picker_parts,
-                    parts::mirror_parts,
+                    parts::mirror_list_look,
+                    parts::mirror_field_keys,
                     parts::redirect_focus,
                 )
                     .chain()

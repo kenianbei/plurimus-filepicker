@@ -34,11 +34,11 @@ pub struct FilePickerParts {
 /// wherever `WidgetsPlugin` runs. A host that edits it through something
 /// else, a window's own text input over the same `TextInput`, removes
 /// `EditableText` from it first, or both edit.
-#[derive(Component, Debug, Clone, Copy, Default)]
+#[derive(Component, Debug, Clone, Copy)]
 pub struct FilePickerField;
 
 /// Marks a picker's list.
-#[derive(Component, Debug, Clone, Copy, Default)]
+#[derive(Component, Debug, Clone, Copy)]
 pub struct FilePickerList;
 
 /// Spawns the field and the list under a new picker.
@@ -128,12 +128,12 @@ pub(crate) fn place_file_picker_parts(
         }
         let order = UiOrder(order.map_or(0, |order| order.0).saturating_add(1));
         let viewport = cameras.of(camera.0);
-        let local = |rect: Rect| viewport.map_or(rect, |viewport| local_area(rect, viewport));
-        let (field, list) = split_area(picker_area.0, prompt_width(&look));
-        place(&mut parts, pair.field, (field, local(field)), order);
+        let prompt = u16::try_from(look.prompt.width()).unwrap_or(u16::MAX);
+        let (field, list) = split_area(picker_area.0, prompt);
+        place(&mut parts, pair.field, field, viewport, order);
         // The engine reveals the cursor into a list with no area and leaves
         // the offset past it; the reveal has to run again once there is one.
-        if place(&mut parts, pair.list, (list, local(list)), order)
+        if place(&mut parts, pair.list, list, viewport, order)
             && let Ok((.., Some(mut offset), Some(mut cursor))) = parts.get_mut(pair.list)
         {
             apply_offset(pair.list, Position::ORIGIN, &mut offset, &mut commands);
@@ -142,52 +142,48 @@ pub(crate) fn place_file_picker_parts(
     }
 }
 
-fn prompt_width(look: &FilePickerLook) -> u16 {
-    u16::try_from(look.prompt.width()).unwrap_or(u16::MAX)
-}
-
 /// Writes a part's screen and camera-local areas and its order, answering
 /// whether its area went from empty to having cells.
-fn place(parts: &mut Parts, part: Entity, (rect, local): (Rect, Rect), order: UiOrder) -> bool {
+fn place(
+    parts: &mut Parts,
+    part: Entity,
+    rect: Rect,
+    viewport: Option<Rect>,
+    order: UiOrder,
+) -> bool {
     let Ok((mut area, mut computed, mut part_order, ..)) = parts.get_mut(part) else {
         return false;
     };
     let is_revealed = computed.0.is_empty() && !rect.is_empty();
     computed.set_if_neq(ComputedWidgetArea(rect));
+    let local = viewport.map_or(rect, |viewport| local_area(rect, viewport));
     area.set_if_neq(UiArea::Fixed(local));
     part_order.set_if_neq(order);
     is_revealed
 }
 
-type RootChanged = Or<(
+type ListLookChanged = Or<(
     Added<FilePickerParts>,
     Changed<ListBoxCursor>,
     Changed<ListBoxStripe>,
     Changed<ListBoxSelectionMarker>,
-    Changed<TextInputKeys>,
-    Changed<FilePickerKeys>,
 )>;
 
-/// Copies the list's look and the field's keys down from the picker. A
-/// removal is not copied: the engine does not repaint on one either.
-pub(crate) fn mirror_parts(
+/// Copies the list's look down from the picker. A removal is not copied:
+/// the engine does not repaint on one either.
+pub(crate) fn mirror_list_look(
     pickers: Query<
         (
             &FilePickerParts,
             Option<&ListBoxCursor>,
             Option<&ListBoxStripe>,
             Has<ListBoxSelectionMarker>,
-            &TextInputKeys,
-            &FilePickerKeys,
         ),
-        RootChanged,
+        ListLookChanged,
     >,
     mut commands: Commands,
 ) {
-    for (parts, cursor, stripe, has_marker, text_keys, picker_keys) in &pickers {
-        commands
-            .entity(parts.field)
-            .insert(field_keys(text_keys, picker_keys));
+    for (parts, cursor, stripe, has_marker) in &pickers {
         let mut list = commands.entity(parts.list);
         if let Some(cursor) = cursor {
             list.insert(cursor.clone());
@@ -199,19 +195,31 @@ pub(crate) fn mirror_parts(
     }
 }
 
-/// The picker's `TextInputKeys` less every key `FilePickerKeys` binds: the
-/// engine's observer on the focused field runs before the picker's, so a key
-/// left bound here would never bubble to the picker.
-fn field_keys(text_keys: &TextInputKeys, picker_keys: &FilePickerKeys) -> TextInputKeys {
-    let is_pickers = |binding: &KeyBinding| picker_keys.0.iter().any(|(bound, _)| bound == binding);
-    TextInputKeys(
-        text_keys
+type KeysChanged = Or<(
+    Added<FilePickerParts>,
+    Changed<TextInputKeys>,
+    Changed<FilePickerKeys>,
+)>;
+
+/// Gives the field the picker's `TextInputKeys` less every key
+/// `FilePickerKeys` binds: the engine's observer on the focused field runs
+/// before the picker's, so a key left bound here would never bubble to the
+/// picker.
+pub(crate) fn mirror_field_keys(
+    pickers: Query<(&FilePickerParts, &TextInputKeys, &FilePickerKeys), KeysChanged>,
+    mut commands: Commands,
+) {
+    for (parts, text_keys, picker_keys) in &pickers {
+        let is_pickers =
+            |binding: &KeyBinding| picker_keys.0.iter().any(|(bound, _)| bound == binding);
+        let kept = text_keys
             .0
             .iter()
             .filter(|(binding, _)| !is_pickers(binding))
             .cloned()
-            .collect(),
-    )
+            .collect();
+        commands.entity(parts.field).insert(TextInputKeys(kept));
+    }
 }
 
 /// Focus given to a picker lands on its field, where the engine edits.

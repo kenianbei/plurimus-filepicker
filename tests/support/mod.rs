@@ -37,7 +37,7 @@ pub fn app() -> App {
     app
 }
 
-/// A picker over `base` filling the terminal, focused, its list spawned.
+/// A picker over `base` filling the terminal, focused, its parts spawned.
 pub fn spawn_picker(app: &mut App, base: &Path) -> Entity {
     spawn_picker_with(app, base, ())
 }
@@ -96,10 +96,6 @@ pub fn set_path(app: &mut App, picker: Entity, path: &str) {
     app.update();
 }
 
-pub fn picker(app: &App, entity: Entity) -> &FilePicker {
-    app.world().get::<FilePicker>(entity).unwrap()
-}
-
 /// The field's text as typed.
 pub fn path(app: &App, picker: Entity) -> &str {
     app.world()
@@ -110,7 +106,10 @@ pub fn path(app: &App, picker: Entity) -> &str {
 
 /// The directory the picker lists.
 pub fn directory(app: &App, picker: Entity) -> PathBuf {
-    self::picker(app, picker).directory(path(app, picker))
+    app.world()
+        .get::<FilePicker>(picker)
+        .unwrap()
+        .directory(path(app, picker))
 }
 
 fn parts(app: &App, picker: Entity) -> FilePickerParts {

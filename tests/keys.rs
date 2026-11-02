@@ -275,6 +275,22 @@ fn a_disabled_picker_ignores_a_command() {
 }
 
 #[test]
+fn pressing_a_row_focuses_the_field_and_moves_the_cursor() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let list = list_of(&app, entity);
+    let children = app.world().get::<Children>(list).unwrap().to_vec();
+    app.world_mut().resource_mut::<InputFocus>().clear();
+    app.update();
+
+    click(&mut app, 3, 2);
+
+    assert_eq!(focused(&app), Some(field_of(&app, entity)));
+    assert_eq!(cursor(&app, list), Some(children[1]));
+}
+
+#[test]
 fn a_click_moves_the_cursor_and_a_double_click_chooses() {
     let dir = scratch();
     let mut app = logged_app();

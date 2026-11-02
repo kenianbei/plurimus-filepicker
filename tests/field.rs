@@ -1,5 +1,6 @@
-//! The path field as a text field: a paste, the clipboard keys, and the
-//! selection drawn.
+//! The path field as the engine's text field: a paste, the clipboard keys,
+//! the selection drawn and ended, the caret published, and the keys the
+//! picker keeps from it.
 
 mod support;
 
@@ -111,7 +112,7 @@ fn cut_sends_the_selection_and_deletes_it() {
 }
 
 #[test]
-fn a_clipboard_key_with_nothing_to_act_on_stays_with_the_picker() {
+fn a_clipboard_key_with_nothing_to_act_on_stays_with_the_field() {
     let dir = scratch();
     let mut app = app();
     let parent = listening_parent(&mut app);

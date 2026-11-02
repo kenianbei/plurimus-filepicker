@@ -3,7 +3,7 @@ use std::path::{MAIN_SEPARATOR_STR, Path, PathBuf};
 
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::hierarchy::{ChildOf, Children};
-use bevy_ecs::prelude::{Commands, Component, Entity, Query, Ref, With};
+use bevy_ecs::prelude::{Commands, Component, Entity, Query, Ref};
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_core::ratatui_core::text::{Line, Span};
@@ -11,7 +11,7 @@ use plurimus_ui::{ScrollOffset, UiStyle, apply_offset};
 use plurimus_widgets::{ActiveDescendant, ListItemTrailing, TextInput, list_item};
 
 use crate::matching::{Match, find_match, light_matches};
-use crate::parts::{FilePickerField, FilePickerParts};
+use crate::parts::FilePickerParts;
 use crate::path::{directory_text, has_parent, or_current, resolve};
 use crate::picker::{
     FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, FilePickerMatchStyle,
@@ -74,7 +74,7 @@ pub(crate) fn relist(
         Option<Ref<FilePickerSource>>,
         &mut Listing,
     )>,
-    mut fields: Query<&mut TextInput, With<FilePickerField>>,
+    mut fields: Query<&mut TextInput>,
 ) {
     for (picker, parts, floor, decorator, source, mut listing) in &mut pickers {
         let Ok(mut text) = fields.get_mut(parts.field) else {
@@ -155,7 +155,7 @@ pub(crate) fn rebuild_rows(
         &FilePickerParts,
         &mut BuiltRows,
     )>,
-    fields: Query<&TextInput, With<FilePickerField>>,
+    fields: Query<&TextInput>,
     rows: Query<&Children>,
     mut offsets: Query<&mut ScrollOffset>,
     mut commands: Commands,

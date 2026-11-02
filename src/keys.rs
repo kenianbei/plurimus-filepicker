@@ -15,8 +15,8 @@ use plurimus_ui::{
 use plurimus_widgets::{ActiveDescendant, ListBoxAccess, ListBoxKeys, TextInput};
 
 use crate::listing::{Entry, Listing};
-use crate::parts::{FilePickerField, FilePickerList, FilePickerParts};
-use crate::path::{directory_text, normalize, with_filter};
+use crate::parts::{FilePickerList, FilePickerParts};
+use crate::path::{directory_text, normalize, split_at_separator};
 use crate::picker::{FilePicker, FilePickerLook};
 
 const TOGGLE_HIDDEN_CHARACTER: &str = ".";
@@ -99,7 +99,7 @@ pub(crate) struct PickerAccess<'w, 's> {
         ),
         Without<ComputedDisabled>,
     >,
-    fields: Query<'w, 's, &'static mut TextInput, With<FilePickerField>>,
+    fields: Query<'w, 's, &'static mut TextInput>,
     cursors: Query<'w, 's, &'static ActiveDescendant>,
     entries: Query<'w, 's, &'static Entry>,
     commands: Commands<'w, 's>,
@@ -177,8 +177,8 @@ impl PickerAccess<'_, '_> {
             return;
         };
         let suffix = if entry.is_dir { MAIN_SEPARATOR_STR } else { "" };
-        let name = format!("{}{suffix}", entry.name);
-        *text = TextInput::new(with_filter(text.value(), &name));
+        let directory = split_at_separator(text.value()).0;
+        *text = TextInput::new(format!("{directory}{}{suffix}", entry.name));
     }
 }
 
@@ -204,10 +204,7 @@ impl ListStep<'_, '_> {
 pub(crate) fn file_picker_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
-    pickers: Query<
-        (&FilePickerKeys, &FilePickerParts),
-        (With<FilePicker>, Without<ComputedDisabled>),
-    >,
+    pickers: Query<(&FilePickerKeys, &FilePickerParts), Without<ComputedDisabled>>,
     mut list: ListStep,
     mut commands: Commands,
 ) {
@@ -232,14 +229,18 @@ pub(crate) fn file_picker_key(
     }
 }
 
-/// A press on the picker's own cells, the prompt and any gap, focuses its
-/// field; presses on the field and the list are the engine's.
+/// A press on the picker or its list focuses the field, the picker's
+/// `PressFocusDisabled` covering both; a press on the field is the engine's.
 pub(crate) fn file_picker_press(
     press: On<PointerPress>,
-    parts: Query<&FilePickerParts, Without<PressFocusDisabled>>,
+    lists: Query<&ChildOf, With<FilePickerList>>,
+    pickers: Query<&FilePickerParts, Without<PressFocusDisabled>>,
     mut focus: ResMut<InputFocus>,
 ) {
-    if let Ok(parts) = parts.get(press.entity) {
+    let picker = lists
+        .get(press.entity)
+        .map_or(press.entity, ChildOf::parent);
+    if let Ok(parts) = pickers.get(picker) {
         focus.set(parts.field, FocusCause::Pressed);
     }
 }
