@@ -13,7 +13,7 @@ use plurimus_core::ratatui_core::text::Line;
 use plurimus_filepicker::{
     FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, RowDecoration, file_picker,
 };
-use plurimus_ui::{ComputedDisabled, InteractionDisabled, UiArea};
+use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, InteractionDisabled, UiArea};
 use plurimus_widgets::{ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe};
 use support::{
     app, composed_styled_frame, cursor, directory, field_of, focus, focused, list_of, path,
@@ -255,6 +255,24 @@ fn field_shows_prompt_text_and_caret_while_focused() {
         &caret_row[3..4],
         "the caret cell is styled unlike the text before it: {styled}"
     );
+}
+
+#[test]
+fn the_field_follows_the_prompts_width() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let field = field_of(&app, entity);
+    set_path(&mut app, entity, "b.");
+
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(FilePickerLook::default().with_prompt("abc> "));
+    app.update();
+
+    let area = app.world().get::<ComputedWidgetArea>(field).unwrap().0;
+    assert_eq!(area, Rect::new(5, 0, support::COLS - 5, 1));
+    assert_eq!(rows(&app)[0], "abc> b.");
 }
 
 const BADGE: &str = "X";

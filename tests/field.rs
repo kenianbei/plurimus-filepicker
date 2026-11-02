@@ -6,13 +6,16 @@ mod support;
 use bevy_app::App;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_input::keyboard::Key;
+use plurimus_core::ratatui_core::layout::Position;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
+use plurimus_filepicker::{FilePickerAction, FilePickerKeys};
 use plurimus_term::{KeyCode, LastCopied, ModifierKey};
 use plurimus_ui::bevy_input_focus::InputFocus;
-use plurimus_ui::{InteractionDisabled, UiTheme};
+use plurimus_ui::{InteractionDisabled, Key as BoundKey, KeyBinding, UiTheme, WidgetCursor};
+use plurimus_widgets::TextInputKeys;
 use support::{
-    Heard, ROWS, app, composed_styled_frame, listening_parent, paste, path, press_chord, press_key,
-    row_texts, scratch, spawn_picker, spawn_picker_with, type_text,
+    Heard, ROWS, app, composed_styled_frame, field_of, focus, listening_parent, paste, path,
+    press_chord, press_key, row_texts, scratch, spawn_picker, spawn_picker_with, type_text,
 };
 
 /// The field row's first cells: the two of the prompt, `ab`, and one more.
@@ -145,4 +148,74 @@ fn a_selection_is_drawn_in_place_of_the_caret() {
     app.world_mut().resource_mut::<InputFocus>().clear();
     app.update();
     assert_selection_drawn(&app, "without focus");
+}
+
+#[test]
+fn the_field_publishes_its_caret_cell() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    type_text(&mut app, "ab");
+
+    let cursor = app.world().get::<WidgetCursor>(field_of(&app, entity));
+    assert_eq!(
+        cursor.map(|cursor| cursor.cell),
+        Some(Some(Position::new(2, 0)))
+    );
+}
+
+#[test]
+fn losing_focus_ends_the_selection() {
+    let dir = scratch();
+    let mut app = app();
+    let elsewhere = app.world_mut().spawn_empty().id();
+    let entity = spawn_picker(&mut app, dir.path());
+    let field = field_of(&app, entity);
+    type_text(&mut app, "ab");
+    ctrl(&mut app, 'a');
+
+    focus(&mut app, elsewhere);
+    app.update();
+    focus(&mut app, field);
+    app.update();
+    ctrl(&mut app, 'c');
+
+    assert_eq!(last_copied(&app), None, "nothing left selected to copy");
+}
+
+fn binds(keys: &TextInputKeys, key: BoundKey) -> bool {
+    let binding = KeyBinding::from(key);
+    keys.0.iter().any(|(bound, _)| *bound == binding)
+}
+
+#[test]
+fn the_field_lacks_the_pickers_keys_and_follows_a_rebinding() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let field = field_of(&app, entity);
+
+    let keys = app.world().get::<TextInputKeys>(field).unwrap();
+    assert!(!binds(keys, BoundKey::Enter), "{keys:?}");
+    assert!(!binds(keys, BoundKey::ArrowLeft), "{keys:?}");
+    assert!(binds(keys, BoundKey::Home), "{keys:?}");
+
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(FilePickerKeys(vec![(
+            BoundKey::Escape.into(),
+            FilePickerAction::Close,
+        )]));
+    app.update();
+    let keys = app.world().get::<TextInputKeys>(field).unwrap();
+    assert!(binds(keys, BoundKey::ArrowLeft), "{keys:?}");
+
+    type_text(&mut app, "ab");
+    press_key(&mut app, KeyCode::Left);
+    type_text(&mut app, "c");
+    assert_eq!(
+        path(&app, entity),
+        "acb",
+        "Left moves the caret once unbound"
+    );
 }

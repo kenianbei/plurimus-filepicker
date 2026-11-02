@@ -28,6 +28,16 @@ Give the picker a `UiArea`, focus it, and observe `ValueChange<PathBuf>` on its
 entity to receive the chosen path. `cargo run --example files` opens one over
 the current directory in a modal pane.
 
+The picker is three entities. The one you spawn draws the prompt and places the
+other two, which it spawns in the next `PreUpdate` and names in
+`FilePickerParts`: the field, a plurimus `EditableText` marked `FilePickerField`
+that holds focus, is the tab stop and publishes its caret to the terminal, and
+the list, a `ListBox` marked `FilePickerList`. Focus given to the picker lands
+on the field. To move the field, write a new `TextInput` to it; to open on a
+path, `FilePicker::new(base).with_path(..)`. A host that sees a gesture the
+picker does not - a window's double click on a row - triggers
+`FilePickerCommand` on the picker and gets the same `Enter`.
+
 | key                        | does                                         |
 | -------------------------- | -------------------------------------------- |
 | typing                     | filters the listed directory                 |
@@ -58,13 +68,13 @@ The field takes a plurimus text field's keys:
 | a paste from the terminal        | goes in at the caret, over any selection |
 
 The picker's bindings are data in `FilePickerKeys` and the field's in
-`TextInputKeys`, both on the picker. `FilePickerKeys` is scanned first, so a key
-bound in both is the picker's: plain Left and Right climb and complete, and only
-their shifted forms reach the field. A copy goes out as a `TerminalRequest`,
-which `plurimus_crossterm` writes to the terminal's clipboard only with
-`CrosstermPlugin::clipboard` set. The three clipboard keys stay with the picker
-even with nothing to copy or paste; take them off its `TextInputKeys` to hand
-them to the app.
+`TextInputKeys`, both on the picker. The field gets the picker's `TextInputKeys`
+less every key `FilePickerKeys` binds, so a key bound in both is the picker's:
+plain Left and Right climb and complete, and only their shifted forms reach the
+field. A copy goes out as a `TerminalRequest`, which `plurimus_crossterm` writes
+to the terminal's clipboard only with `CrosstermPlugin::clipboard` set. The
+three clipboard keys stay with the field even with nothing to copy or paste;
+take them off the picker's `TextInputKeys` to hand them to the app.
 
 `..` lists first in any directory with a parent, so Enter on it climbs too.
 `FilePickerFloor` stops traversal above a directory. `FilePickerLook` sets the

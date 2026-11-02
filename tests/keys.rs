@@ -285,6 +285,7 @@ fn a_click_moves_the_cursor_and_a_double_click_chooses() {
     click(&mut app, 3, 4);
     assert_eq!(cursor(&app, list), Some(children[3]));
     assert!(chosen(&app).is_empty(), "one click chooses nothing");
+    assert_eq!(focused(&app), Some(field_of(&app, entity)), "focus stays");
 
     click(&mut app, 3, 4);
     assert_eq!(chosen(&app), [(entity, dir.path().join("a.txt"))]);
