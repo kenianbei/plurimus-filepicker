@@ -9,10 +9,10 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use bevy_input::keyboard::Key;
-use plurimus_filepicker::{FilePicker, FilePickerLook};
+use plurimus_filepicker::{FilePicker, FilePickerAction, FilePickerCommand, FilePickerLook};
 use plurimus_term::{KeyCode, ModifierKey};
 use plurimus_ui::bevy_input_focus::InputFocus;
-use plurimus_ui::{ModalDismiss, ValueChange};
+use plurimus_ui::{InteractionDisabled, ModalDismiss, ValueChange};
 use support::{
     Heard, click, cursor, directory, field_of, focused, list_of, listening_parent, path,
     press_chord, press_key, repeat_key, rows, scratch, set_path, spawn_picker, spawn_picker_with,
@@ -239,6 +239,39 @@ fn pressing_the_prompt_focuses_the_field() {
 
     click(&mut app, 1, 0);
     assert_eq!(focused(&app), Some(field));
+}
+
+fn command(app: &mut App, picker: Entity, action: FilePickerAction) {
+    app.world_mut().trigger(FilePickerCommand {
+        entity: picker,
+        action,
+    });
+    app.update();
+}
+
+#[test]
+fn a_command_from_outside_enters_like_the_key() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+
+    command(&mut app, entity, FilePickerAction::Enter);
+    assert_eq!(path(&app, entity), "sub/", "the cursor's directory");
+
+    command(&mut app, entity, FilePickerAction::Enter);
+    assert_eq!(chosen(&app), [(entity, dir.path().join("sub/inner.rs"))]);
+}
+
+#[test]
+fn a_disabled_picker_ignores_a_command() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker_with(&mut app, dir.path(), InteractionDisabled);
+
+    command(&mut app, entity, FilePickerAction::Enter);
+
+    assert_eq!(path(&app, entity), "");
+    assert_eq!(chosen(&app), []);
 }
 
 #[test]

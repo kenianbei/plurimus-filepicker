@@ -18,7 +18,7 @@ mod picker;
 mod source;
 mod style;
 
-pub use keys::{FilePickerAction, FilePickerKeys};
+pub use keys::{FilePickerAction, FilePickerCommand, FilePickerKeys};
 pub use parts::{FilePickerField, FilePickerList, FilePickerParts};
 pub use picker::{
     FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, FilePickerMatchStyle,
@@ -66,6 +66,7 @@ impl Plugin for FilePickerPlugin {
             Update,
             style::style_file_pickers.in_set(WidgetSystems::Style),
         );
+        app.add_observer(keys::apply_file_picker_command);
         app.add_observer(keys::file_picker_key);
         app.add_observer(keys::file_picker_press);
         app.add_observer(keys::file_picker_click);

@@ -1,9 +1,11 @@
 use std::path::MAIN_SEPARATOR_STR;
 
+use bevy_ecs::event::EntityEvent;
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{Commands, Component, Entity, On, ParamSet, Query, ResMut, With, Without};
+use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
+use plurimus_term::KeyModifiers;
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_ui::{
@@ -65,6 +67,24 @@ impl Default for FilePickerKeys {
     }
 }
 
+/// Applies a [`FilePickerAction`] to a picker, as its bound key would.
+///
+/// The picker's own keys and a double click on its list arrive here too, so
+/// a host that sees a gesture the picker does not - a window's double click
+/// on a row - triggers this on the picker and gets the same `Enter`. A
+/// disabled picker ignores it.
+#[derive(EntityEvent, Debug, Clone, Copy)]
+pub struct FilePickerCommand {
+    /// The picker.
+    pub entity: Entity,
+    /// What to do to it.
+    pub action: FilePickerAction,
+}
+
+pub(crate) fn apply_file_picker_command(command: On<FilePickerCommand>, mut access: PickerAccess) {
+    access.apply(command.entity, command.action);
+}
+
 /// Everything an action reads or writes on a picker.
 #[derive(SystemParam)]
 pub(crate) struct PickerAccess<'w, 's> {
@@ -73,7 +93,6 @@ pub(crate) struct PickerAccess<'w, 's> {
         's,
         (
             &'static FilePicker,
-            &'static FilePickerKeys,
             &'static FilePickerParts,
             &'static mut FilePickerLook,
             &'static Listing,
@@ -87,10 +106,10 @@ pub(crate) struct PickerAccess<'w, 's> {
 }
 
 impl PickerAccess<'_, '_> {
-    fn apply(&mut self, picker: Entity, action: FilePickerAction, is_repeat: bool) {
+    fn apply(&mut self, picker: Entity, action: FilePickerAction) {
         match action {
             FilePickerAction::Parent => self.go_to_parent(picker),
-            FilePickerAction::Enter => self.enter(picker, is_repeat),
+            FilePickerAction::Enter => self.enter(picker),
             FilePickerAction::Complete => self.complete(picker),
             FilePickerAction::ToggleHidden => {
                 if let Ok((.., mut look, _)) = self.pickers.get_mut(picker) {
@@ -102,13 +121,13 @@ impl PickerAccess<'_, '_> {
     }
 
     fn cursor_entry(&self, picker: Entity) -> Option<Entry> {
-        let (_, _, parts, ..) = self.pickers.get(picker).ok()?;
+        let (_, parts, ..) = self.pickers.get(picker).ok()?;
         let row = self.cursors.get(parts.list).ok()?.0?;
         self.entries.get(row).ok().cloned()
     }
 
     fn go_to_parent(&mut self, picker: Entity) {
-        let Ok((state, _, parts, _, listing)) = self.pickers.get(picker) else {
+        let Ok((state, parts, _, listing)) = self.pickers.get(picker) else {
             return;
         };
         if !listing.has_parent {
@@ -125,7 +144,7 @@ impl PickerAccess<'_, '_> {
         *text = TextInput::new(directory_text(&parent, state.base()));
     }
 
-    fn enter(&mut self, picker: Entity, is_repeat: bool) {
+    fn enter(&mut self, picker: Entity) {
         let Some(entry) = self.cursor_entry(picker) else {
             return;
         };
@@ -133,10 +152,7 @@ impl PickerAccess<'_, '_> {
             self.complete(picker);
             return;
         }
-        if is_repeat {
-            return;
-        }
-        let Ok((state, _, parts, ..)) = self.pickers.get(picker) else {
+        let Ok((state, parts, ..)) = self.pickers.get(picker) else {
             return;
         };
         let Ok(text) = self.fields.get(parts.field) else {
@@ -154,7 +170,7 @@ impl PickerAccess<'_, '_> {
         let Some(entry) = self.cursor_entry(picker) else {
             return;
         };
-        let Ok((_, _, parts, ..)) = self.pickers.get(picker) else {
+        let Ok((_, parts, ..)) = self.pickers.get(picker) else {
             return;
         };
         let Ok(mut text) = self.fields.get_mut(parts.field) else {
@@ -166,35 +182,52 @@ impl PickerAccess<'_, '_> {
     }
 }
 
+/// The list's keys and the applier they drive.
+#[derive(SystemParam)]
+pub(crate) struct ListStep<'w, 's> {
+    keys: Query<'w, 's, &'static ListBoxKeys>,
+    lists: ListBoxAccess<'w, 's>,
+}
+
+impl ListStep<'_, '_> {
+    /// Moves the list's cursor as `input` binds, answering whether it moved.
+    fn step(&mut self, list: Entity, input: &KeyboardInput, held: KeyModifiers) -> bool {
+        let Ok(keys) = self.keys.get(list) else {
+            return false;
+        };
+        first_bound(&keys.0, input, held).is_some_and(|action| self.lists.apply(list, action))
+    }
+}
+
 /// The picker's bindings first, then the list's for whatever is left.
 /// Reached by bubbling from the focused field, which has typed what it took.
 pub(crate) fn file_picker_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
-    list_keys: Query<&ListBoxKeys>,
-    mut access: ParamSet<(PickerAccess, ListBoxAccess)>,
+    pickers: Query<
+        (&FilePickerKeys, &FilePickerParts),
+        (With<FilePicker>, Without<ComputedDisabled>),
+    >,
+    mut list: ListStep,
+    mut commands: Commands,
 ) {
     let picker = input.focused_entity;
-    let held = held.get();
-    let list = {
-        let mut pickers = access.p0();
-        let Ok((_, keys, parts, ..)) = pickers.pickers.get(picker) else {
-            return;
-        };
-        let (bound, list) = (first_bound(&keys.0, &input.input, held), parts.list);
-        if let Some(action) = bound {
-            input.propagate(false);
-            pickers.apply(picker, action, input.input.repeat);
-            return;
-        }
-        list
-    };
-    let Ok(keys) = list_keys.get(list) else {
+    let Ok((keys, parts)) = pickers.get(picker) else {
         return;
     };
-    if let Some(action) = first_bound(&keys.0, &input.input, held)
-        && access.p1().apply(list, action)
-    {
+    let held = held.get();
+    if let Some(action) = first_bound(&keys.0, &input.input, held) {
+        input.propagate(false);
+        // One Enter chooses once, however long the key is held.
+        if action != FilePickerAction::Enter || !input.input.repeat {
+            commands.trigger(FilePickerCommand {
+                entity: picker,
+                action,
+            });
+        }
+        return;
+    }
+    if list.step(parts.list, &input.input, held) {
         input.propagate(false);
     }
 }
@@ -215,12 +248,15 @@ pub(crate) fn file_picker_press(
 pub(crate) fn file_picker_click(
     click: On<Click>,
     lists: Query<&ChildOf, With<FilePickerList>>,
-    mut access: PickerAccess,
+    mut commands: Commands,
 ) {
     if click.count < DOUBLE_CLICK {
         return;
     }
     if let Ok(child_of) = lists.get(click.entity) {
-        access.apply(child_of.parent(), FilePickerAction::Enter, false);
+        commands.trigger(FilePickerCommand {
+            entity: child_of.parent(),
+            action: FilePickerAction::Enter,
+        });
     }
 }
