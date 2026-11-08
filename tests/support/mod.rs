@@ -17,7 +17,9 @@ use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
-use plurimus_filepicker::{FilePicker, FilePickerParts, FilePickerPlugin, file_picker};
+use plurimus_filepicker::{
+    FilePicker, FilePickerAction, FilePickerCommand, FilePickerParts, FilePickerPlugin, file_picker,
+};
 use plurimus_term::{KeyModifiers, MouseButton, PasteMessage, TerminalInput, VirtualWindow};
 use plurimus_ui::UiArea;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
@@ -93,6 +95,15 @@ pub fn set_path(app: &mut App, picker: Entity, path: &str) {
     app.world_mut()
         .entity_mut(field)
         .insert(TextInput::new(path));
+    app.update();
+}
+
+/// Applies `action` to `picker` from outside, as a host would.
+pub fn command(app: &mut App, picker: Entity, action: FilePickerAction) {
+    app.world_mut().trigger(FilePickerCommand {
+        entity: picker,
+        action,
+    });
     app.update();
 }
 

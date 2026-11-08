@@ -9,13 +9,13 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use bevy_input::keyboard::Key;
-use plurimus_filepicker::{FilePicker, FilePickerAction, FilePickerCommand, FilePickerLook};
+use plurimus_filepicker::{FilePicker, FilePickerAction, FilePickerLook};
 use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{InteractionDisabled, ModalDismiss, ValueChange};
 use support::{
-    Heard, character, click, cursor, directory, field_of, focused, list_of, listening_parent, path,
-    press_key, press_key_with_ctrl, repeat_key, rows, scratch, set_path, spawn_picker,
-    spawn_picker_with, type_text,
+    Heard, character, click, command, cursor, directory, field_of, focused, list_of,
+    listening_parent, path, press_key, press_key_with_ctrl, repeat_key, row_texts, rows, scratch,
+    set_path, spawn_picker, spawn_picker_with, type_text,
 };
 
 #[derive(Resource, Default)]
@@ -112,10 +112,7 @@ fn arrows_on_a_lone_row_leave_the_picker() {
     let parent = listening_parent(&mut app);
     spawn_picker_with(&mut app, dir.path(), ChildOf(parent));
     type_text(&mut app, "a.t");
-    assert_eq!(
-        rows(&app)[1..].iter().filter(|row| !row.is_empty()).count(),
-        1
-    );
+    assert_eq!(row_texts(&app), ["a.txt"]);
 
     press_key(&mut app, Key::ArrowUp);
     press_key(&mut app, Key::ArrowDown);
@@ -132,11 +129,7 @@ fn a_command_steps_the_cursor() {
     let list = list_of(&app, entity);
     let children = app.world().get::<Children>(list).unwrap().to_vec();
 
-    app.world_mut().trigger(FilePickerCommand {
-        entity,
-        action: FilePickerAction::Down,
-    });
-    app.update();
+    command(&mut app, entity, FilePickerAction::Down);
 
     assert_eq!(cursor(&app, list), Some(children[2]));
 }
@@ -285,14 +278,6 @@ fn pressing_the_prompt_focuses_the_field() {
 
     click(&mut app, 1, 0);
     assert_eq!(focused(&app), Some(field));
-}
-
-fn command(app: &mut App, picker: Entity, action: FilePickerAction) {
-    app.world_mut().trigger(FilePickerCommand {
-        entity: picker,
-        action,
-    });
-    app.update();
 }
 
 #[test]

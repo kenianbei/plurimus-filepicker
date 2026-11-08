@@ -25,7 +25,17 @@ pub(crate) struct FieldText<'w, 's> {
 impl FieldText<'_, '_> {
     pub(crate) fn value(&self, field: Entity) -> Option<Cow<'_, str>> {
         match self.fields.get(field).ok()? {
-            (Some(editor), _) => Some(Cow::Owned(editor.value().to_string())),
+            (Some(editor), _) => {
+                // Split around an IME preedit, so whole in `head` unless composing.
+                let mut halves = editor.into_inner().value().into_iter();
+                let head = halves.next().unwrap_or_default();
+                let tail = halves.next().unwrap_or_default();
+                Some(if tail.is_empty() {
+                    Cow::Borrowed(head)
+                } else {
+                    Cow::Owned(format!("{head}{tail}"))
+                })
+            }
             (None, Some(input)) => Some(Cow::Borrowed(input.into_inner().value())),
             (None, None) => None,
         }

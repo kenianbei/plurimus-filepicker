@@ -6,9 +6,9 @@ mod support;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_text::EditableText;
-use plurimus_filepicker::{FilePickerAction, FilePickerCommand};
+use plurimus_filepicker::FilePickerAction;
 use plurimus_widgets::TextField;
-use support::{app, field_of, row_texts, scratch, spawn_picker};
+use support::{app, command, field_of, row_texts, scratch, spawn_picker};
 
 /// A picker over `base` whose field is edited through `EditableText`.
 fn dressed_picker(app: &mut App, base: &std::path::Path) -> Entity {
@@ -38,12 +38,6 @@ fn set_editor_text(app: &mut App, picker: Entity, text: &str) {
         .unwrap()
         .editor_mut()
         .set_text(text);
-    app.update();
-}
-
-fn command(app: &mut App, entity: Entity, action: FilePickerAction) {
-    app.world_mut()
-        .trigger(FilePickerCommand { entity, action });
     app.update();
 }
 

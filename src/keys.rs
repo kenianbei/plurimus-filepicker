@@ -50,12 +50,6 @@ pub enum FilePickerAction {
     PageDown,
 }
 
-impl FilePickerAction {
-    const fn is_list_step(self) -> bool {
-        matches!(self, Self::Up | Self::Down | Self::PageUp | Self::PageDown)
-    }
-}
-
 /// The picker's key bindings, scanned first to last.
 ///
 /// A key reaches the picker by bubbling from its focused field, which took
@@ -121,8 +115,15 @@ pub(crate) struct PickerAccess<'w, 's> {
         Without<ComputedDisabled>,
     >,
     fields: FieldText<'w, 's>,
-    cursors: Query<'w, 's, &'static ActiveDescendant>,
-    lists: Query<'w, 's, (&'static ComputedWidgetArea, &'static Children)>,
+    lists: Query<
+        'w,
+        's,
+        (
+            &'static ComputedWidgetArea,
+            Option<&'static Children>,
+            &'static ActiveDescendant,
+        ),
+    >,
     entries: Query<'w, 's, &'static Entry>,
     commands: Commands<'w, 's>,
 }
@@ -155,7 +156,7 @@ impl PickerAccess<'_, '_> {
             return false;
         };
         let list = parts.list;
-        let (Ok((area, rows)), Ok(cursor)) = (self.lists.get(list), self.cursors.get(list)) else {
+        let Ok((area, Some(rows), cursor)) = self.lists.get(list) else {
             return false;
         };
         let Some(last_row) = rows.len().checked_sub(1) else {
@@ -184,7 +185,7 @@ impl PickerAccess<'_, '_> {
 
     fn cursor_entry(&self, picker: Entity) -> Option<Entry> {
         let (_, parts, ..) = self.pickers.get(picker).ok()?;
-        let row = self.cursors.get(parts.list).ok()?.0?;
+        let row = self.lists.get(parts.list).ok()?.2.0?;
         self.entries.get(row).ok().cloned()
     }
 
@@ -203,9 +204,8 @@ impl PickerAccess<'_, '_> {
                 .resolved_directory(&text)
                 .join(std::path::Component::ParentDir),
         );
-        let field = parts.field;
-        let parent = directory_text(&parent, state.base());
-        self.fields.set(field, parent);
+        self.fields
+            .set(parts.field, directory_text(&parent, state.base()));
     }
 
     fn enter(&mut self, picker: Entity) {
@@ -237,13 +237,12 @@ impl PickerAccess<'_, '_> {
         let Ok((_, parts, ..)) = self.pickers.get(picker) else {
             return;
         };
-        let field = parts.field;
-        let Some(text) = self.fields.value(field) else {
+        let Some(text) = self.fields.value(parts.field) else {
             return;
         };
         let suffix = if entry.is_dir { MAIN_SEPARATOR_STR } else { "" };
         let completed = format!("{}{}{suffix}", split_at_separator(&text).0, entry.name);
-        self.fields.set(field, completed);
+        self.fields.set(parts.field, completed);
     }
 }
 
@@ -255,7 +254,6 @@ pub(crate) fn file_picker_key(
     held: HeldModifiers,
     pickers: Query<&FilePickerKeys, Without<ComputedDisabled>>,
     mut access: PickerAccess,
-    mut commands: Commands,
 ) {
     let picker = input.focused_entity;
     let Ok(keys) = pickers.get(picker) else {
@@ -264,7 +262,14 @@ pub(crate) fn file_picker_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    if action.is_list_step() {
+    let is_list_step = matches!(
+        action,
+        FilePickerAction::Up
+            | FilePickerAction::Down
+            | FilePickerAction::PageUp
+            | FilePickerAction::PageDown
+    );
+    if is_list_step {
         if access.step_cursor(picker, action) {
             input.propagate(false);
         }
@@ -273,7 +278,7 @@ pub(crate) fn file_picker_key(
     input.propagate(false);
     // One Enter chooses once, however long the key is held.
     if action != FilePickerAction::Enter || !input.input.repeat {
-        commands.trigger(FilePickerCommand {
+        access.commands.trigger(FilePickerCommand {
             entity: picker,
             action,
         });

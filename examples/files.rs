@@ -14,7 +14,6 @@ use bevy_ecs::prelude::{
     Commands, IntoScheduleConfigs, MessageReader, MessageWriter, On, Query, Res, ResMut, Resource,
     With, Without,
 };
-use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus_core::ratatui_core::layout::{Margin, Rect};
 use plurimus_core::ratatui_core::text::Line;
@@ -24,7 +23,7 @@ use plurimus_filepicker::{FilePicker, FilePickerPlugin, file_picker};
 use plurimus_term::HeldModifiers;
 use plurimus_ui::bevy_input_focus::tab_navigation::TabGroup;
 use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
-use plurimus_ui::{ModalDismiss, ModalOpen, UiSystems, ValueChange};
+use plurimus_ui::{KeyBinding, ModalDismiss, ModalOpen, UiSystems, ValueChange, first_bound};
 use plurimus_widgets::{ListBoxCursor, Pane, pane};
 
 const COLS: u16 = 60;
@@ -121,10 +120,11 @@ fn quit_on_ctrl_q(
     held: HeldModifiers,
     mut exit: MessageWriter<AppExit>,
 ) {
-    let quit = Key::Character(QUIT.into());
-    for key in keys.read() {
-        if key.state == ButtonState::Pressed && held.get().ctrl && key.logical_key == quit {
-            exit.write(AppExit::Success);
-        }
+    let quit = [(KeyBinding::new(Key::Character(QUIT.into())).with_ctrl(), ())];
+    if keys
+        .read()
+        .any(|key| first_bound(&quit, key, held.get()).is_some())
+    {
+        exit.write(AppExit::Success);
     }
 }
