@@ -20,7 +20,7 @@ const DEFAULT_PROMPT: &str = "> ";
 /// it filters the entries. `..`, `~`, and an absolute path are ordinary
 /// text, which is what makes traversal free.
 ///
-/// The field is a child `EditableText`, named by [`FilePickerParts`] on the
+/// The field is a child `TextField`, named by [`FilePickerParts`] on the
 /// picker and holding its focus: the engine edits its `TextInput` through
 /// the picker's [`TextInputKeys`], less the keys [`FilePickerKeys`] binds,
 /// places its caret by pointer and publishes it to the terminal. To move

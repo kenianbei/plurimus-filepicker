@@ -11,10 +11,10 @@ use bevy_app::App;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use plurimus_filepicker::{
     DirectorySource, FilePickerDecorator, FilePickerSource, RowDecoration, SourceEntry,
 };
-use plurimus_term::KeyCode;
 use plurimus_ui::ValueChange;
 use support::{path, press_key, row_texts, set_path, spawn_picker_with, type_text};
 
@@ -70,7 +70,7 @@ fn a_source_without_a_working_directory_still_climbs_to_its_root() {
     let mut app = support::app();
     let entity = spawn_over(&mut app, "/plans", ());
 
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowLeft);
     assert_eq!(path(&app, entity), "/");
     assert_eq!(row_texts(&app), ["plans/"]);
 }
@@ -112,7 +112,7 @@ fn enter_chooses_the_sources_path() {
     spawn_over(&mut app, "/plans", ());
 
     type_text(&mut app, "b.");
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(
         app.world().resource::<Chosen>().0,
         [PathBuf::from("/plans/b.toml")]

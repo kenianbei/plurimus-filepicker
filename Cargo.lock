@@ -109,9 +109,9 @@ dependencies = [
 
 [[package]]
 name = "async-executor"
-version = "1.14.0"
+version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a"
+checksum = "f426a31126c735126297bc5ea7a521263c9faff4f63ca415267ee625651c4f37"
 dependencies = [
  "async-task",
  "concurrent-queue",
@@ -462,6 +462,36 @@ checksum = "d4e4c4183c39ae8d00e53afeeab66aa71c41b08d82638149f9d485a2a62df569"
 dependencies = [
  "bevy_macro_utils",
  "encase_derive_impl",
+]
+
+[[package]]
+name = "bevy_extract"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08e27fc07ef8e3ab7c217fed1b171d42c90f3b6e4f7f526ffa28f9006ac49aa4"
+dependencies = [
+ "bevy_app",
+ "bevy_camera",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_extract_macros",
+ "bevy_log",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_time",
+ "bevy_utils",
+]
+
+[[package]]
+name = "bevy_extract_macros"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a5c67e8c55ef35c65295e8cb614eda169780e21e2748f6df470d3bff21849a3"
+dependencies = [
+ "bevy_macro_utils",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -2265,8 +2295,11 @@ name = "plurimus_core"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_camera",
  "bevy_color",
  "bevy_ecs",
+ "bevy_extract",
+ "bevy_math",
  "ratatui-core",
 ]
 
@@ -2276,6 +2309,7 @@ version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_input",
  "bevy_log",
  "crossterm",
  "plurimus_core",
@@ -2306,7 +2340,9 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_input",
+ "bevy_math",
  "bevy_time",
+ "bevy_window",
  "plurimus_core",
 ]
 
@@ -2315,6 +2351,7 @@ name = "plurimus_ui"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_camera",
  "bevy_ecs",
  "bevy_input",
  "bevy_input_focus",
@@ -2327,6 +2364,7 @@ dependencies = [
  "plurimus_core",
  "plurimus_term",
  "tui-scrollview",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -2342,7 +2380,6 @@ dependencies = [
  "plurimus_ui",
  "ratatui-textarea",
  "ratatui-widgets",
- "unicode-segmentation",
 ]
 
 [[package]]

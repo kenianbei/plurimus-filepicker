@@ -4,14 +4,15 @@ use bevy_ecs::prelude::{
     Added, Changed, Commands, Component, Entity, Has, Or, Query, ResMut, With, Without,
 };
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiOrder, UiWidget, local_area};
+use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiOrder, local_area};
+use plurimus_ui::bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_ui::{
-    ComputedWidgetArea, Key, KeyBinding, PressFocusDisabled, ScrollArea, ScrollOffset, apply_offset,
+    ComputedWidgetArea, KeyBinding, PressFocusDisabled, ScrollArea, ScrollOffset, apply_offset,
 };
 use plurimus_widgets::{
-    ActiveDescendant, ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxSelectionMarker,
-    ListBoxStripe, TextInputKeys, editable_text,
+    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, TextInputKeys, listbox,
+    text_field,
 };
 
 use crate::keys::FilePickerKeys;
@@ -21,7 +22,7 @@ use crate::picker::{FilePicker, FilePickerLook};
 /// The picker's two children, spawned in the first `PreUpdate` after it.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct FilePickerParts {
-    /// The path field: an `EditableText` the engine edits, which holds the
+    /// The path field: a `TextField` the engine edits, which holds the
     /// picker's focus and is its tab stop.
     pub field: Entity,
     /// The `ListBox` of entries, stepped from the field.
@@ -30,10 +31,10 @@ pub struct FilePickerParts {
 
 /// Marks a picker's field.
 ///
-/// The field carries `EditableText`, so the engine's observers edit it
+/// The field carries `TextField`, so the engine's observers edit it
 /// wherever `WidgetsPlugin` runs. A host that edits it through something
 /// else, a window's own text input over the same `TextInput`, removes
-/// `EditableText` from it first, or both edit.
+/// `TextField` from it first, or both edit.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct FilePickerField;
 
@@ -49,34 +50,26 @@ pub(crate) fn install_file_picker_parts(
     for (picker, state) in &pickers {
         let field = commands
             .spawn((
-                editable_text(state.opened_on()),
+                text_field(state.opened_on()),
                 FilePickerField,
                 UiArea::Fixed(Rect::ZERO),
                 UiOrder(0),
                 ChildOf(picker),
             ))
             .id();
-        // Enter is the picker's, and space, Home and End are the field's.
-        let list_keys = ListBoxKeys(vec![
-            (Key::ArrowUp.into(), ListBoxAction::Up),
-            (Key::ArrowDown.into(), ListBoxAction::Down),
-            (Key::PageUp.into(), ListBoxAction::PageUp),
-            (Key::PageDown.into(), ListBoxAction::PageDown),
-        ]);
         // No `TabIndex` and no focus on a press: the field holds focus and
-        // the list is stepped from it.
+        // the picker steps the list from it.
         let list = commands
             .spawn((
-                ListBox,
-                UiWidget::default(),
+                listbox(),
                 FilePickerList,
                 PressFocusDisabled,
-                list_keys,
                 ScrollArea::new(Size::ZERO),
                 UiArea::Fixed(Rect::ZERO),
                 UiOrder(0),
                 ChildOf(picker),
             ))
+            .remove::<TabIndex>()
             .id();
         commands
             .entity(picker)
@@ -105,7 +98,7 @@ type Parts<'w, 's> = Query<
         &'static mut ComputedWidgetArea,
         &'static mut UiOrder,
         Option<&'static mut ScrollOffset>,
-        Option<&'static mut ActiveDescendant>,
+        Option<&'static ActiveDescendant>,
     ),
     Without<FilePicker>,
 >;
@@ -134,10 +127,10 @@ pub(crate) fn place_file_picker_parts(
         // The engine reveals the cursor into a list with no area and leaves
         // the offset past it; the reveal has to run again once there is one.
         if place(&mut parts, pair.list, list, viewport, order)
-            && let Ok((.., Some(mut offset), Some(mut cursor))) = parts.get_mut(pair.list)
+            && let Ok((.., Some(mut offset), Some(cursor))) = parts.get_mut(pair.list)
         {
             apply_offset(pair.list, Position::ORIGIN, &mut offset, &mut commands);
-            cursor.set_changed();
+            commands.entity(pair.list).insert(cursor.clone());
         }
     }
 }

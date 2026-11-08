@@ -1,18 +1,18 @@
 use std::path::MAIN_SEPARATOR_STR;
 
 use bevy_ecs::event::EntityEvent;
-use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
-use plurimus_term::KeyModifiers;
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
+use plurimus_ui::bevy_picking::events::{PointerClick, PointerPress};
 use plurimus_ui::{
-    Click, ComputedDisabled, Key, KeyBinding, ModalDismiss, PointerPress, PressFocusDisabled,
+    ComputedDisabled, ComputedWidgetArea, Key, KeyBinding, ModalDismiss, PressFocusDisabled,
     ValueChange, first_bound,
 };
-use plurimus_widgets::{ActiveDescendant, ListBoxAccess, ListBoxKeys, TextInput};
+use plurimus_widgets::{ActiveDescendant, TextInput};
 
 use crate::listing::{Entry, Listing};
 use crate::parts::{FilePickerList, FilePickerParts};
@@ -37,6 +37,22 @@ pub enum FilePickerAction {
     ToggleHidden,
     /// Triggers `ModalDismiss` on the picker; the app decides what it means.
     Close,
+    /// Moves the list's cursor up a row, from the first to the last.
+    Up,
+    /// Moves the list's cursor down a row, from the last to the first.
+    Down,
+    /// Moves the list's cursor up by the list's height, stopping at the
+    /// first row.
+    PageUp,
+    /// Moves the list's cursor down by the list's height, stopping at the
+    /// last row.
+    PageDown,
+}
+
+impl FilePickerAction {
+    const fn is_list_step(self) -> bool {
+        matches!(self, Self::Up | Self::Down | Self::PageUp | Self::PageDown)
+    }
 }
 
 /// The picker's key bindings, scanned first to last.
@@ -45,9 +61,9 @@ pub enum FilePickerAction {
 /// its turn first with the picker's `TextInputKeys` less every key bound
 /// here, so a key bound in both is the picker's: by default plain `Left`
 /// climbs and `Right` completes, while their shifted forms select. What
-/// these leave goes to the list's `Up`, `Down`, `PageUp` and `PageDown`,
-/// kept while they move its cursor; one that cannot, on the first row or the
-/// last, bubbles on to the picker's ancestors.
+/// these leave bubbles on to the picker's ancestors, and so does a
+/// [`FilePickerAction::Up`], `Down`, `PageUp` or `PageDown` that moved
+/// nothing: one row, or a page key at the end it moves towards.
 #[derive(Component, Debug, Clone)]
 pub struct FilePickerKeys(pub Vec<(KeyBinding, FilePickerAction)>);
 
@@ -63,6 +79,10 @@ impl Default for FilePickerKeys {
                 FilePickerAction::ToggleHidden,
             ),
             (Key::Escape.into(), FilePickerAction::Close),
+            (Key::ArrowUp.into(), FilePickerAction::Up),
+            (Key::ArrowDown.into(), FilePickerAction::Down),
+            (Key::PageUp.into(), FilePickerAction::PageUp),
+            (Key::PageDown.into(), FilePickerAction::PageDown),
         ])
     }
 }
@@ -101,6 +121,7 @@ pub(crate) struct PickerAccess<'w, 's> {
     >,
     fields: Query<'w, 's, &'static mut TextInput>,
     cursors: Query<'w, 's, &'static ActiveDescendant>,
+    lists: Query<'w, 's, (&'static ComputedWidgetArea, &'static Children)>,
     entries: Query<'w, 's, &'static Entry>,
     commands: Commands<'w, 's>,
 }
@@ -117,7 +138,47 @@ impl PickerAccess<'_, '_> {
                 }
             }
             FilePickerAction::Close => self.commands.trigger(ModalDismiss { entity: picker }),
+            FilePickerAction::Up
+            | FilePickerAction::Down
+            | FilePickerAction::PageUp
+            | FilePickerAction::PageDown => {
+                self.step_cursor(picker, action);
+            }
         }
+    }
+
+    /// Moves the list's cursor as a list `action` does, answering whether
+    /// it moved. A cursor on no row starts from the first.
+    fn step_cursor(&mut self, picker: Entity, action: FilePickerAction) -> bool {
+        let Ok((_, parts, ..)) = self.pickers.get(picker) else {
+            return false;
+        };
+        let list = parts.list;
+        let (Ok((area, rows)), Ok(cursor)) = (self.lists.get(list), self.cursors.get(list)) else {
+            return false;
+        };
+        let Some(last_row) = rows.len().checked_sub(1) else {
+            return false;
+        };
+        let current = cursor
+            .0
+            .and_then(|cursor| rows.iter().position(|&row| row == cursor));
+        let page = usize::from(area.0.height).max(1);
+        let next = match (action, current) {
+            (FilePickerAction::Up, Some(0)) => last_row,
+            (FilePickerAction::Up, Some(index)) => index - 1,
+            (FilePickerAction::Down, Some(index)) if index < last_row => index + 1,
+            (FilePickerAction::PageUp, Some(index)) => index.saturating_sub(page),
+            (FilePickerAction::PageDown, Some(index)) => index.saturating_add(page).min(last_row),
+            _ => 0,
+        };
+        if current == Some(next) {
+            return false;
+        }
+        self.commands
+            .entity(list)
+            .insert(ActiveDescendant(Some(rows[next])));
+        true
     }
 
     fn cursor_entry(&self, picker: Entity) -> Option<Entry> {
@@ -182,50 +243,36 @@ impl PickerAccess<'_, '_> {
     }
 }
 
-/// The list's keys and the applier they drive.
-#[derive(SystemParam)]
-pub(crate) struct ListStep<'w, 's> {
-    keys: Query<'w, 's, &'static ListBoxKeys>,
-    lists: ListBoxAccess<'w, 's>,
-}
-
-impl ListStep<'_, '_> {
-    /// Moves the list's cursor as `input` binds, answering whether it moved.
-    fn step(&mut self, list: Entity, input: &KeyboardInput, held: KeyModifiers) -> bool {
-        let Ok(keys) = self.keys.get(list) else {
-            return false;
-        };
-        first_bound(&keys.0, input, held).is_some_and(|action| self.lists.apply(list, action))
-    }
-}
-
-/// The picker's bindings first, then the list's for whatever is left.
-/// Reached by bubbling from the focused field, which has typed what it took.
+/// The picker's bindings, reached by bubbling from the focused field, which
+/// has typed what it took. A list step is applied here rather than through
+/// [`FilePickerCommand`], so a step that moved nothing can bubble on.
 pub(crate) fn file_picker_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
-    pickers: Query<(&FilePickerKeys, &FilePickerParts), Without<ComputedDisabled>>,
-    mut list: ListStep,
+    pickers: Query<&FilePickerKeys, Without<ComputedDisabled>>,
+    mut access: PickerAccess,
     mut commands: Commands,
 ) {
     let picker = input.focused_entity;
-    let Ok((keys, parts)) = pickers.get(picker) else {
+    let Ok(keys) = pickers.get(picker) else {
         return;
     };
-    let held = held.get();
-    if let Some(action) = first_bound(&keys.0, &input.input, held) {
-        input.propagate(false);
-        // One Enter chooses once, however long the key is held.
-        if action != FilePickerAction::Enter || !input.input.repeat {
-            commands.trigger(FilePickerCommand {
-                entity: picker,
-                action,
-            });
+    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
+        return;
+    };
+    if action.is_list_step() {
+        if access.step_cursor(picker, action) {
+            input.propagate(false);
         }
         return;
     }
-    if list.step(parts.list, &input.input, held) {
-        input.propagate(false);
+    input.propagate(false);
+    // One Enter chooses once, however long the key is held.
+    if action != FilePickerAction::Enter || !input.input.repeat {
+        commands.trigger(FilePickerCommand {
+            entity: picker,
+            action,
+        });
     }
 }
 
@@ -247,7 +294,7 @@ pub(crate) fn file_picker_press(
 
 /// A double click on a row is `Enter` on it.
 pub(crate) fn file_picker_click(
-    click: On<Click>,
+    click: On<PointerClick>,
     lists: Query<&ChildOf, With<FilePickerList>>,
     mut commands: Commands,
 ) {

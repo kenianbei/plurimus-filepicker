@@ -10,20 +10,21 @@ use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_filepicker::{FilePickerAction, FilePickerKeys};
-use plurimus_term::{KeyCode, LastCopied, ModifierKey};
+use plurimus_term::LastCopied;
 use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{InteractionDisabled, Key as BoundKey, KeyBinding, UiTheme, WidgetCursor};
 use plurimus_widgets::TextInputKeys;
 use support::{
-    Heard, ROWS, app, composed_styled_frame, field_of, focus, listening_parent, paste, path,
-    press_chord, press_key, row_texts, scratch, spawn_picker, spawn_picker_with, type_text,
+    Heard, ROWS, app, character, composed_styled_frame, field_of, focus, listening_parent, path,
+    press_key, press_key_with_ctrl, row_texts, scratch, send_paste, spawn_picker,
+    spawn_picker_with, type_text,
 };
 
 /// The field row's first cells: the two of the prompt, `ab`, and one more.
 const FIELD_CELLS: usize = 5;
 
-fn ctrl(app: &mut App, character: char) {
-    press_chord(app, ModifierKey::ControlLeft, KeyCode::Char(character));
+fn ctrl(app: &mut App, typed: char) {
+    press_key_with_ctrl(app, character(typed));
 }
 
 /// Asserts the field row draws `ab` underlined and no caret after it.
@@ -50,7 +51,7 @@ fn a_paste_lands_in_the_field_and_filters() {
     let mut app = app();
     let entity = spawn_picker(&mut app, dir.path());
 
-    paste(&mut app, "sub/in");
+    send_paste(&mut app, "sub/in");
 
     assert_eq!(path(&app, entity), "sub/in");
     assert_eq!(row_texts(&app), ["inner.rs"]);
@@ -64,7 +65,7 @@ fn a_paste_replaces_the_selection() {
     type_text(&mut app, "ab");
     ctrl(&mut app, 'a');
 
-    paste(&mut app, "sub/");
+    send_paste(&mut app, "sub/");
 
     assert_eq!(path(&app, entity), "sub/");
 }
@@ -75,7 +76,7 @@ fn a_disabled_picker_takes_no_paste() {
     let mut app = app();
     let entity = spawn_picker_with(&mut app, dir.path(), InteractionDisabled);
 
-    paste(&mut app, "ab");
+    send_paste(&mut app, "ab");
 
     assert_eq!(path(&app, entity), "");
 }
@@ -92,7 +93,7 @@ fn copy_sends_the_selection_and_paste_inserts_it() {
     assert_eq!(last_copied(&app), Some("ab"));
     assert_eq!(path(&app, entity), "ab");
 
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
     ctrl(&mut app, 'v');
     assert_eq!(path(&app, entity), "abab");
 }
@@ -212,7 +213,7 @@ fn the_field_lacks_the_pickers_keys_and_follows_a_rebinding() {
     assert!(binds(keys, BoundKey::ArrowLeft), "{keys:?}");
 
     type_text(&mut app, "ab");
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowLeft);
     type_text(&mut app, "c");
     assert_eq!(
         path(&app, entity),

@@ -14,12 +14,14 @@ use bevy_ecs::prelude::{
     Commands, IntoScheduleConfigs, MessageReader, MessageWriter, On, Query, Res, ResMut, Resource,
     With, Without,
 };
+use bevy_input::ButtonState;
+use bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus_core::ratatui_core::layout::{Margin, Rect};
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea};
 use plurimus_crossterm::CrosstermPlugin;
 use plurimus_filepicker::{FilePicker, FilePickerPlugin, file_picker};
-use plurimus_term::{KeyCode, KeyKind, KeyMessage};
+use plurimus_term::HeldModifiers;
 use plurimus_ui::bevy_input_focus::tab_navigation::TabGroup;
 use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_ui::{ModalDismiss, ModalOpen, UiSystems, ValueChange};
@@ -29,6 +31,7 @@ const COLS: u16 = 60;
 const ROWS: u16 = 16;
 const TITLE: &str = " files ";
 const CURSOR: &str = "▸ ";
+const QUIT: &str = "q";
 const FRAME_TICK: Duration = Duration::from_millis(16);
 
 #[derive(Resource, Default)]
@@ -113,9 +116,14 @@ fn dismiss(_dismissed: On<ModalDismiss>, mut exit: MessageWriter<AppExit>) {
 }
 
 // Ctrl+c is the picker's: it copies the field's selection.
-fn quit_on_ctrl_q(mut keys: MessageReader<KeyMessage>, mut exit: MessageWriter<AppExit>) {
+fn quit_on_ctrl_q(
+    mut keys: MessageReader<KeyboardInput>,
+    held: HeldModifiers,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let quit = Key::Character(QUIT.into());
     for key in keys.read() {
-        if key.kind == KeyKind::Press && key.modifiers.ctrl && key.code == KeyCode::Char('q') {
+        if key.state == ButtonState::Pressed && held.get().ctrl && key.logical_key == quit {
             exit.write(AppExit::Success);
         }
     }

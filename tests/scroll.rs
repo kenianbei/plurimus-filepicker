@@ -4,24 +4,25 @@ mod support;
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_filepicker::file_picker;
-use plurimus_term::KeyCode;
 use plurimus_ui::{ScrollOffset, UiArea};
 use support::{
-    COLS, DEEP_FILES, ROWS, app, focus, list_of, press_key, row_texts, rows, spawn_picker,
-    tall_scratch,
+    COLS, DEEP_FILES, ROWS, app, character, focus, list_of, press_key, row_texts, rows,
+    spawn_picker, tall_scratch,
 };
 
 /// Where the engine's reveal leaves a list with no area: past its cursor.
 const UNPLACED_OFFSET: Position = Position::new(1, 2);
 
 /// A picker over `deep/` with the cursor on its last row, so the list is
-/// scrolled as far as it goes.
+/// scrolled as far as it goes: the cursor opens on the row after `..`, and
+/// one more Down would wrap it to the top.
 fn scrolled_picker(app: &mut App, dir: &tempfile::TempDir) -> Entity {
     let picker = spawn_picker(app, &dir.path().join("deep"));
-    for _ in 0..DEEP_FILES {
-        press_key(app, KeyCode::Down);
+    for _ in 1..DEEP_FILES {
+        press_key(app, Key::ArrowDown);
     }
     let list = list_of(app, picker);
     assert_ne!(offset(app, list), Position::ORIGIN);
@@ -47,7 +48,7 @@ fn a_parent_listing_opens_at_its_top() {
     let mut app = app();
     let list = scrolled_picker(&mut app, &dir);
 
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowLeft);
 
     assert_eq!(offset(&app, list), Position::ORIGIN);
     assert_eq!(top_rows(&app), ["../", "deep/"]);
@@ -61,7 +62,7 @@ fn a_filtered_listing_opens_at_its_top() {
     let mut app = app();
     let list = scrolled_picker(&mut app, &dir);
 
-    press_key(&mut app, KeyCode::Char('.'));
+    press_key(&mut app, character('.'));
 
     assert_eq!(offset(&app, list), Position::ORIGIN);
     assert_eq!(top_rows(&app), ["../", "p00.txt"]);

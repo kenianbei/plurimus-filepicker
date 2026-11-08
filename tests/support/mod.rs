@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use bevy_app::App;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{On, ResMut, Resource};
+use bevy_ecs::prelude::{In, On, ResMut, Resource};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus_core::ratatui_core::buffer::Buffer;
@@ -18,10 +18,7 @@ use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
 use plurimus_filepicker::{FilePicker, FilePickerParts, FilePickerPlugin, file_picker};
-use plurimus_term::{
-    KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind, MouseMessage,
-    PasteMessage,
-};
+use plurimus_term::{KeyModifiers, MouseButton, PasteMessage, TerminalInput, VirtualWindow};
 use plurimus_ui::UiArea;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_widgets::{ActiveDescendant, TextInput};
@@ -34,6 +31,9 @@ pub fn app() -> App {
     app.add_plugins((CorePlugin, FilePickerPlugin));
     app.insert_resource(TerminalSize::new(COLS, ROWS));
     app.world_mut().spawn(TerminalCamera::default());
+    // `TermPlugin` lends one on the first frame; input written before it
+    // names a window too.
+    app.world_mut().spawn(VirtualWindow);
     app
 }
 
@@ -161,57 +161,77 @@ pub fn tall_scratch() -> tempfile::TempDir {
     dir
 }
 
-fn press_key_kind(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) {
-    app.world_mut()
-        .write_message(KeyMessage::new(code, modifiers, kind));
-    app.update();
+/// The key a character is typed as.
+pub fn character(c: char) -> Key {
+    Key::Character(c.encode_utf8(&mut [0; 4]).into())
 }
 
-pub fn press_key(app: &mut App, code: KeyCode) {
-    press_key_kind(app, code, KeyModifiers::default(), KeyKind::Press);
+/// What a backend reports, in the sink's terms.
+#[derive(Debug, Clone)]
+enum Report {
+    Key(Key, ButtonState, bool),
+    Button(ButtonState, Position),
+    Moved(Position),
 }
 
-pub fn repeat_key(app: &mut App, code: KeyCode) {
-    press_key_kind(app, code, KeyModifiers::default(), KeyKind::Repeat);
-}
-
-pub fn type_text(app: &mut App, text: &str) {
-    for ch in text.chars() {
-        press_key(app, KeyCode::Char(ch));
+fn inject(In(report): In<Report>, mut input: TerminalInput) {
+    let none = KeyModifiers::default();
+    match report {
+        Report::Key(key, state, repeat) => input.key(key, state, repeat, none),
+        Report::Button(state, at) => input.button(MouseButton::Left, state, at, none),
+        Report::Moved(at) => input.moved(at, none),
     }
 }
 
-/// A chord presses and releases the modifier itself: nothing expires a
-/// hold on the kitty tier the headless app claims.
-pub fn press_chord(app: &mut App, modifier: ModifierKey, code: KeyCode) {
-    let modifier_code = KeyCode::Modifier(modifier);
-    let held = KeyModifiers::from(modifier);
-    let none = KeyModifiers::default();
-    press_key_kind(app, modifier_code, held, KeyKind::Press);
-    press_key_kind(app, code, held, KeyKind::Press);
-    press_key_kind(app, code, held, KeyKind::Release);
-    press_key_kind(app, modifier_code, none, KeyKind::Release);
+/// Writes `report` as a backend would, through one cached sink so its own
+/// state carries across calls, then ticks the app.
+fn send(app: &mut App, report: Report) {
+    app.world_mut()
+        .run_system_cached_with(inject, report)
+        .expect("the sink runs against TermPlugin's resources");
+    app.update();
+}
+
+fn press_and_release(app: &mut App, key: Key, repeat: bool) {
+    send(app, Report::Key(key.clone(), ButtonState::Pressed, repeat));
+    send(app, Report::Key(key, ButtonState::Released, false));
+}
+
+pub fn press_key(app: &mut App, key: Key) {
+    press_and_release(app, key, false);
+}
+
+pub fn repeat_key(app: &mut App, key: Key) {
+    press_and_release(app, key, true);
+}
+
+pub fn type_text(app: &mut App, text: &str) {
+    for c in text.chars() {
+        press_key(app, character(c));
+    }
+}
+
+/// A chord holds Ctrl by its own press and release: nothing expires a hold
+/// on the kitty tier the headless app claims.
+pub fn press_key_with_ctrl(app: &mut App, key: Key) {
+    send(app, Report::Key(Key::Control, ButtonState::Pressed, false));
+    press_and_release(app, key, false);
+    send(app, Report::Key(Key::Control, ButtonState::Released, false));
 }
 
 /// A bracketed paste, as a terminal sends one.
-pub fn paste(app: &mut App, text: &str) {
+pub fn send_paste(app: &mut App, text: &str) {
     app.world_mut().write_message(PasteMessage(text.to_owned()));
     app.update();
 }
 
-pub fn send_mouse(app: &mut App, kind: MouseKind, x: u16, y: u16) {
-    app.world_mut().write_message(MouseMessage::new(
-        kind,
-        Position::new(x, y),
-        KeyModifiers::default(),
-    ));
-    app.update();
-}
-
+/// Moves to `(x, y)`, presses left there and releases, ticking after each
+/// so hover resolves before the press lands.
 pub fn click(app: &mut App, x: u16, y: u16) {
-    send_mouse(app, MouseKind::Moved, x, y);
-    send_mouse(app, MouseKind::Down(MouseButton::Left), x, y);
-    send_mouse(app, MouseKind::Up(MouseButton::Left), x, y);
+    let at = Position::new(x, y);
+    send(app, Report::Moved(at));
+    send(app, Report::Button(ButtonState::Pressed, at));
+    send(app, Report::Button(ButtonState::Released, at));
 }
 
 /// The composed frame as one line of cell symbols per row.
