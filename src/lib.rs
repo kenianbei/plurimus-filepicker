@@ -8,6 +8,7 @@ use plurimus_ui::UiSystems;
 use plurimus_ui::bevy_input_focus::InputFocusSystems;
 use plurimus_widgets::{WidgetSystems, WidgetsPlugin};
 
+mod field;
 mod keys;
 mod layout;
 mod listing;

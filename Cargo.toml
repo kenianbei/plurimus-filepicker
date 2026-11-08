@@ -26,6 +26,7 @@ exclude = [
 bevy_app = "0.20"
 bevy_ecs = "0.20"
 bevy_input = { version = "0.20", features = ["keyboard", "mouse"] }
+bevy_text = { version = "0.20", default-features = false }
 plurimus_core = "0.9.0"
 plurimus_term = "0.9.0"
 plurimus_ui = "0.9.0"

@@ -30,13 +30,20 @@ the current directory in a modal pane.
 
 The picker is three entities. The one you spawn draws the prompt and places the
 other two, which it spawns in the next `PreUpdate` and names in
-`FilePickerParts`: the field, a plurimus `EditableText` marked `FilePickerField`
+`FilePickerParts`: the field, a plurimus `TextField` marked `FilePickerField`
 that holds focus, is the tab stop and publishes its caret to the terminal, and
 the list, a `ListBox` marked `FilePickerList`. Focus given to the picker lands
 on the field. To move the field, write a new `TextInput` to it; to open on a
 path, `FilePicker::new(base).with_path(..)`. A host that sees a gesture the
 picker does not - a window's double click on a row - triggers
 `FilePickerCommand` on the picker and gets the same `Enter`.
+
+A host may dress the field as upstream's text input instead, in a window or on a
+plurimus node: remove `TextField` and add `bevy_ui_widgets::TextInput`, and the
+picker reads and writes the field's `EditableText`. That field keeps the arrows,
+Home and End for its caret, so the picker's arrow bindings do not reach it
+there; rebind them in `FilePickerKeys` - Alt with an arrow passes upstream's
+field - or trigger `FilePickerCommand`.
 
 | key                        | does                                         |
 | -------------------------- | -------------------------------------------- |
@@ -48,11 +55,12 @@ picker does not - a window's double click on a row - triggers
 | Ctrl+.                     | toggles hidden entries                       |
 | Esc                        | triggers `ModalDismiss` on the picker        |
 
-The list keeps its four keys only while they move the cursor, as every plurimus
-list does. Up or PageUp on the first row and Down or PageDown on the last bubble
-on to the picker's ancestors, so a fresh arrow press at an end moves focus to
-the widget beyond it, within the modal when the picker is in one; a held arrow
-stops at the end. To keep them, observe `FocusedInput<KeyboardInput>` on the
+Up and Down wrap from one end of the list to the other, as a plurimus list's
+arrows do; PageUp and PageDown move by the list's height and stop at the ends. A
+list key that moves nothing - an arrow over a single row, PageUp on the first
+row, PageDown on the last - bubbles on to the picker's ancestors, so a page key
+pressed at an end moves focus to the widget beyond it, within the modal when the
+picker is in one. To keep them, observe `FocusedInput<KeyboardInput>` on the
 picker and stop those keys there.
 
 The field takes a plurimus text field's keys:

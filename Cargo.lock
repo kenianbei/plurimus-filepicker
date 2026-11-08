@@ -2325,6 +2325,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_input",
+ "bevy_text",
  "plurimus_core",
  "plurimus_crossterm",
  "plurimus_term",

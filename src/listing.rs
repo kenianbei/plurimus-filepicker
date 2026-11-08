@@ -8,8 +8,9 @@ use plurimus_core::ratatui_core::layout::Position;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_core::ratatui_core::text::{Line, Span};
 use plurimus_ui::{ScrollOffset, UiStyle, apply_offset};
-use plurimus_widgets::{ActiveDescendant, ListItemTrailing, TextInput, list_item};
+use plurimus_widgets::{ActiveDescendant, ListItemTrailing, list_item};
 
+use crate::field::FieldText;
 use crate::matching::{Match, find_match, light_matches};
 use crate::parts::FilePickerParts;
 use crate::path::{directory_text, has_parent, or_current, resolve};
@@ -74,16 +75,13 @@ pub(crate) fn relist(
         Option<Ref<FilePickerSource>>,
         &mut Listing,
     )>,
-    mut fields: Query<&mut TextInput>,
+    mut fields: FieldText,
 ) {
     for (picker, parts, floor, decorator, source, mut listing) in &mut pickers {
-        let Ok(mut text) = fields.get_mut(parts.field) else {
-            continue;
-        };
         let floor_changed = floor.is_changed();
         let is_reread = decorator.as_ref().is_some_and(DetectChanges::is_changed)
             || source.as_ref().is_some_and(DetectChanges::is_changed);
-        if !text.is_changed() && !floor_changed && !is_reread {
+        if !fields.is_changed(parts.field) && !floor_changed && !is_reread {
             continue;
         }
         if is_reread {
@@ -93,11 +91,16 @@ pub(crate) fn relist(
             .0
             .as_deref()
             .map(|floor| resolve(floor, picker.base()));
-        let mut directory = picker.resolved_directory(text.value());
+        let Some(mut directory) = fields
+            .value(parts.field)
+            .map(|text| picker.resolved_directory(&text))
+        else {
+            continue;
+        };
         if let Some(floor) = &floor
             && !directory.starts_with(floor)
         {
-            *text = TextInput::new(directory_text(floor, picker.base()));
+            fields.set(parts.field, directory_text(floor, picker.base()));
             directory.clone_from(floor);
         }
         let is_read = listing.directory.as_ref() == Some(&directory);
@@ -155,17 +158,17 @@ pub(crate) fn rebuild_rows(
         &FilePickerParts,
         &mut BuiltRows,
     )>,
-    fields: Query<&TextInput>,
+    fields: FieldText,
     rows: Query<&Children>,
     mut offsets: Query<&mut ScrollOffset>,
     mut commands: Commands,
 ) {
     for (listing, look, lit, parts, mut built) in &mut pickers {
-        let Ok(text) = fields.get(parts.field) else {
+        let Some(text) = fields.value(parts.field) else {
             continue;
         };
         let list = parts.list;
-        let filter = FilePicker::filter(text.value());
+        let filter = FilePicker::filter(&text);
         let is_stale =
             listing.is_changed() || look.is_changed() || lit.is_changed() || built.filter != filter;
         if !is_stale {

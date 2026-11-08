@@ -32,9 +32,17 @@ pub struct FilePickerParts {
 /// Marks a picker's field.
 ///
 /// The field carries `TextField`, so the engine's observers edit it
-/// wherever `WidgetsPlugin` runs. A host that edits it through something
-/// else, a window's own text input over the same `TextInput`, removes
-/// `TextField` from it first, or both edit.
+/// wherever `WidgetsPlugin` runs. A host may dress it as upstream's text
+/// input instead, in a window or on a plurimus node, by removing
+/// `TextField` and adding `bevy_ui_widgets::TextInput`: the picker then
+/// reads and writes the field's `EditableText`, which wins over its
+/// `TextInput` when both are there. That field takes the arrows, Home and
+/// End for its caret, so the picker's arrow bindings never reach the
+/// picker; a host rebinds them in [`FilePickerKeys`] or triggers
+/// [`FilePickerCommand`].
+///
+/// [`FilePickerKeys`]: crate::FilePickerKeys
+/// [`FilePickerCommand`]: crate::FilePickerCommand
 #[derive(Component, Debug, Clone, Copy)]
 pub struct FilePickerField;
 

@@ -24,7 +24,8 @@ const DEFAULT_PROMPT: &str = "> ";
 /// picker and holding its focus: the engine edits its `TextInput` through
 /// the picker's [`TextInputKeys`], less the keys [`FilePickerKeys`] binds,
 /// places its caret by pointer and publishes it to the terminal. To move
-/// the field, write a new `TextInput` to that entity.
+/// the field, write a new `TextInput` to that entity, or set the text of its
+/// `EditableText` where a host dressed it with one.
 ///
 /// [`FilePickerParts`]: crate::FilePickerParts
 #[derive(Component, Debug, Clone)]

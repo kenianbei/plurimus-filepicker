@@ -12,8 +12,9 @@ use plurimus_ui::{
     ComputedDisabled, ComputedWidgetArea, Key, KeyBinding, ModalDismiss, PressFocusDisabled,
     ValueChange, first_bound,
 };
-use plurimus_widgets::{ActiveDescendant, TextInput};
+use plurimus_widgets::ActiveDescendant;
 
+use crate::field::FieldText;
 use crate::listing::{Entry, Listing};
 use crate::parts::{FilePickerList, FilePickerParts};
 use crate::path::{directory_text, normalize, split_at_separator};
@@ -119,7 +120,7 @@ pub(crate) struct PickerAccess<'w, 's> {
         ),
         Without<ComputedDisabled>,
     >,
-    fields: Query<'w, 's, &'static mut TextInput>,
+    fields: FieldText<'w, 's>,
     cursors: Query<'w, 's, &'static ActiveDescendant>,
     lists: Query<'w, 's, (&'static ComputedWidgetArea, &'static Children)>,
     entries: Query<'w, 's, &'static Entry>,
@@ -194,15 +195,17 @@ impl PickerAccess<'_, '_> {
         if !listing.has_parent {
             return;
         }
-        let Ok(mut text) = self.fields.get_mut(parts.field) else {
+        let Some(text) = self.fields.value(parts.field) else {
             return;
         };
         let parent = normalize(
             &state
-                .resolved_directory(text.value())
+                .resolved_directory(&text)
                 .join(std::path::Component::ParentDir),
         );
-        *text = TextInput::new(directory_text(&parent, state.base()));
+        let field = parts.field;
+        let parent = directory_text(&parent, state.base());
+        self.fields.set(field, parent);
     }
 
     fn enter(&mut self, picker: Entity) {
@@ -216,10 +219,10 @@ impl PickerAccess<'_, '_> {
         let Ok((state, parts, ..)) = self.pickers.get(picker) else {
             return;
         };
-        let Ok(text) = self.fields.get(parts.field) else {
+        let Some(text) = self.fields.value(parts.field) else {
             return;
         };
-        let chosen = state.resolved_directory(text.value()).join(&entry.name);
+        let chosen = state.resolved_directory(&text).join(&entry.name);
         self.commands.trigger(ValueChange {
             source: picker,
             value: chosen,
@@ -234,12 +237,13 @@ impl PickerAccess<'_, '_> {
         let Ok((_, parts, ..)) = self.pickers.get(picker) else {
             return;
         };
-        let Ok(mut text) = self.fields.get_mut(parts.field) else {
+        let field = parts.field;
+        let Some(text) = self.fields.value(field) else {
             return;
         };
         let suffix = if entry.is_dir { MAIN_SEPARATOR_STR } else { "" };
-        let directory = split_at_separator(text.value()).0;
-        *text = TextInput::new(format!("{directory}{}{suffix}", entry.name));
+        let completed = format!("{}{}{suffix}", split_at_separator(&text).0, entry.name);
+        self.fields.set(field, completed);
     }
 }
 
