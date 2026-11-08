@@ -6,7 +6,11 @@ plurimus's public widget engine, outside the plurimus workspace. It depends on
 same version an app pulls through the `plurimus` facade, so cargo unifies them
 and the picker's components sit beside the app's own widgets. `bevy_input_focus`
 is not a dependency of its own: the crate reaches it through `plurimus_ui`'s
-re-export, at the version the engine uses.
+re-export, at the version the engine uses. `bevy_text` is, at the 0.20 that
+`bevy_ui_widgets` already pulls in, for the `EditableText` of a field a host
+dressed as upstream's text input. The crate builds against the plurimus after
+0.9.0 that runs on `bevy_picking` and `bevy_ui_widgets`' models, through the
+`[patch.crates-io]` paths to `../plurimus`.
 
 `FilePickerPlugin` installs the crate's systems and observers. It requires
 `CorePlugin` first and adds `WidgetsPlugin` when absent.
@@ -28,23 +32,33 @@ A picker is three entities and rows the crate respawns:
   to a `RowDecoration`, and `FilePickerSource`, what the picker lists. The crate
   inserts `FilePickerParts { field, list }` in the first `PreUpdate` after the
   root appears. The root's `UiWidget` draws the prompt alone.
-- **The field**, a child spawned beside the list: `editable_text` over the
-  opening text, so `EditableText`, `TextInput`, `TabIndex(0)` and a `UiWidget`,
-  plus the public marker `FilePickerField`, a `UiArea::Fixed` and a `UiOrder`.
-  The field's text is the whole state. The engine edits it: `text_input_key`
-  through the field's `TextInputKeys`, `text_input_paste`, the clipboard through
+- **The field**, a child spawned beside the list: `text_field` over the opening
+  text, so `TextField`, `TextInput`, `TabIndex(0)` and a `UiWidget`, plus the
+  public marker `FilePickerField`, a `UiArea::Fixed` and a `UiOrder`. The
+  field's text is the whole state. The engine edits it: `text_input_key` through
+  the field's `TextInputKeys`, `text_input_paste`, the clipboard through
   `Clipboard`, and the pointer through `text_input_press` and `text_input_drag`;
-  it emits `ValueChange<String>`, clears the selection on `FocusLost`, draws the
-  row as a `TextField` and publishes the caret's cell in `WidgetCursor`. The
-  field's `TextInputKeys` is the root's less every `KeyBinding` the root's
-  `FilePickerKeys` holds, written on `Added<FilePickerParts>` and whenever
-  either changes. The field holds focus and is the picker's tab stop.
-- **The list**, a child `ListBox` with a `UiWidget` and no `TabIndex`, carrying
-  the public marker `FilePickerList`, `PressFocusDisabled`, `ListBoxKeys` pruned
-  to Up, Down, PageUp and PageDown, a `ScrollArea`, a `UiArea::Fixed` and a
-  `UiOrder`. `ListBoxCursor`, `ListBoxStripe` and `ListBoxSelectionMarker` on
-  the root are copied onto the list on `Added<FilePickerParts>` and whenever
-  they change on the root; a removal is not copied.
+  it emits `ValueChange<String>`, clears the selection in `text_input_blur` on
+  `FocusLost`, draws the row in `style_text_inputs` and publishes the caret's
+  cell in `WidgetCursor`. The picker reads and writes the text through the
+  private `field::FieldText`: the field's `EditableText` when it carries one,
+  borrowed unless an IME preedit splits it and written with `set_text` and a
+  queued `TextEdit::TextEnd`, and its `TextInput` otherwise, written whole. A
+  host dresses the field as upstream's text input by removing `TextField` and
+  adding `bevy_ui_widgets::TextInput`; that observer takes the arrows, Home and
+  End before they bubble. The field's `TextInputKeys` is the root's less every
+  `KeyBinding` the root's `FilePickerKeys` holds, written on
+  `Added<FilePickerParts>` and whenever either changes. The field holds focus
+  and is the picker's tab stop.
+- **The list**, a child spawned from `listbox()` with its `TabIndex` removed, so
+  `ListBox`, which requires `ActiveDescendant`, with `Hovered`, `StylistCache`,
+  `ComputedWidgetArea` and a `UiWidget`, and carrying the public marker
+  `FilePickerList`, `PressFocusDisabled`, a `ScrollArea`, a `UiArea::Fixed` and
+  a `UiOrder`. It binds no keys: upstream's list keys act on a focused list, and
+  this one never holds focus. `ListBoxCursor`, `ListBoxStripe` and
+  `ListBoxSelectionMarker` on the root are copied onto the list on
+  `Added<FilePickerParts>` and whenever they change on the root; a removal is
+  not copied.
 - **Rows**, `list_item` children of the list, each carrying a private `Entry`
   naming the directory entry it stands for. Where the listed directory has a
   parent, `..` is a directory `Entry` ahead of the entries read, drawn `../`,
@@ -101,21 +115,21 @@ After `InputFocusSystems::Dispatch` and `UiSystems::Areas`, before
 `WidgetSystems::Layout`, chained, so a key that edited the field lands the same
 frame ahead of the engine's row passes:
 
-1. `relist` runs when the field's `TextInput` is marked changed, which the
-   engine does for any key or press it handles on the field and not only for an
-   edit, or when the floor, the decorator, or the source changed; a changed
-   decorator or source marks the directory unread, and a removed one goes
-   unnoticed until the next read. It resolves the floor against the base the way
-   the field is resolved, writes a new `TextInput` naming the floor into the
-   field when the directory falls outside it, and stops there when the directory
-   is the one last read and the floor did not change. Otherwise it records
-   whether the directory has a parent, `has_parent` over the source's
-   `current_dir` and not the floor, and lists the directory through the source,
-   or `DiskSource`, when it differs from the one last read. The source is handed
-   the resolved directory, `.` for the working directory, and the decorator,
-   when there is one, that directory joined with each file's name. Entries sort
-   directories first, then names case-insensitively; a directory the source
-   cannot list has no entries.
+1. `relist` runs when the field's text, its `EditableText` or else its
+   `TextInput`, is marked changed, which the engine does for any key or press it
+   handles on the field and not only for an edit, or when the floor, the
+   decorator, or the source changed; a changed decorator or source marks the
+   directory unread, and a removed one goes unnoticed until the next read. It
+   resolves the floor against the base the way the field is resolved, writes the
+   floor into the field through `FieldText` when the directory falls outside it,
+   and stops there when the directory is the one last read and the floor did not
+   change. Otherwise it records whether the directory has a parent, `has_parent`
+   over the source's `current_dir` and not the floor, and lists the directory
+   through the source, or `DiskSource`, when it differs from the one last read.
+   The source is handed the resolved directory, `.` for the working directory,
+   and the decorator, when there is one, that directory joined with each file's
+   name. Entries sort directories first, then names case-insensitively; a
+   directory the source cannot list has no entries.
 2. `rebuild_rows` runs when the listing, look, match style, or the filter, read
    from the field's text, changed. It despawns the old rows last child first,
    puts `..` ahead of the entries when the listing has a parent, keeps entries
@@ -136,9 +150,10 @@ frame ahead of the engine's row passes:
    `local_area`, and `UiOrder` one above the root's. Where the list's area goes
    from empty to having cells, a picker placed after its rows or shown after
    being hidden, it also puts the list's `ScrollOffset` back at the origin
-   through `apply_offset` and marks `ActiveDescendant` changed: the engine
-   reveals a cursor into a list with no area and leaves the offset past it, and
-   reveals again only when the cursor changes.
+   through `apply_offset` and re-inserts the list's `ActiveDescendant`, which is
+   immutable, so it reads as changed: the engine reveals a cursor into a list
+   with no area and leaves the offset past it, and reveals again only when the
+   cursor changes.
 
 In `Update`, `style_file_pickers` in `WidgetSystems::Style` draws the root's
 `UiWidget`: the prompt as a `Paragraph` in the root's state style, focused when
@@ -160,16 +175,22 @@ A key is dispatched to the focused field, where the engine's `text_input_key`
 takes what the field's `TextInputKeys` bind and consumes it; the clipboard keys
 are consumed whether or not they acted. The rest bubbles to the root.
 `file_picker_key`, a global `FocusedInput<KeyboardInput>` observer on a root
-with `FilePickerParts` and without `ComputedDisabled`, scans `FilePickerKeys`
-through `first_bound`: a hit is consumed and triggers `FilePickerCommand`,
-except `Enter` on a key repeat, which is consumed and does nothing. Otherwise it
-scans the list's `ListBoxKeys` and applies a hit through `ListBoxAccess`,
-consuming the key only when the cursor moved, so Up or PageUp on the first row
-and Down or PageDown on the last bubble on to the picker's ancestors. Because
-the field's keys lack everything `FilePickerKeys` binds, a key bound in both is
-the picker's. The engine resolves `ComputedDisabled` onto the root, the field
-and the list from an `InteractionDisabled` on the root or any ancestor, so a
-disabled picker's field types nothing and its keys pass the root and bubble on.
+without `ComputedDisabled`, scans `FilePickerKeys` through `first_bound`, whose
+defaults bind Enter, Tab, Right, Left, Ctrl+. and Escape, then Up, Down, PageUp
+and PageDown. A list step, `Up`, `Down`, `PageUp` or `PageDown`, is applied
+inline through `PickerAccess::step_cursor` and consumed only when the cursor
+moved; any other hit is consumed and triggers `FilePickerCommand`, except
+`Enter` on a key repeat, which is consumed and does nothing. `step_cursor` reads
+the list's children as its rows and its `ComputedWidgetArea`'s height, at least
+one, as a page: Up and Down move one row and wrap, PageUp and PageDown move a
+page and stop at the first and last rows, a cursor on no row starts from the
+first, and a move inserts `ActiveDescendant`. So Up and Down over fewer than two
+rows, PageUp on the first row and PageDown on the last bubble on to the picker's
+ancestors. Because the field's keys lack everything `FilePickerKeys` binds, a
+key bound in both is the picker's. The engine resolves `ComputedDisabled` onto
+the root, the field and the list from an `InteractionDisabled` on the root or
+any ancestor, so a disabled picker's field types nothing and its keys pass the
+root and bubble on.
 
 `FilePickerCommand { entity, action }` is a public entity event;
 `apply_file_picker_command` hands it to the crate-private `PickerAccess::apply`
@@ -179,31 +200,37 @@ one, and nothing at a root or the floor; `Enter` completes a directory or
 triggers `ValueChange<PathBuf>` on the root for a file; `Complete` replaces what
 follows the field's last separator with the cursor's entry, a separator after a
 directory; `ToggleHidden` flips `FilePickerLook::hidden`; `Close` triggers
-`ModalDismiss { entity: root }`. `Parent` and `Complete` write a new `TextInput`
-to the field, which ends its selection.
+`ModalDismiss { entity: root }`; `Up`, `Down`, `PageUp` and `PageDown` step the
+cursor as the keys do. `Parent` and `Complete` write the field through
+`FieldText`, which ends its selection.
 
 A bracketed paste is the engine's: `text_input_paste` on the focused field.
 
-Two pointer observers: `file_picker_press` focuses the field with
-`FocusCause::Pressed` on a `PointerPress` on the root or on the list, unless the
-root has `PressFocusDisabled`; the list's own `PressFocusDisabled` keeps the
-pointer router from moving focus for it, while the engine's `listbox_press`
-still moves the cursor. A press on the field is the engine's, which places the
-caret and focuses the field through its `TabIndex`. `file_picker_click` triggers
-`FilePickerCommand` with `Enter` on a `Click` with count two or more on the
-list.
+Two pointer observers on `bevy_picking`'s events: `file_picker_press` focuses
+the field with `FocusCause::Pressed` on a `PointerPress` on the root or on the
+list, unless the root has `PressFocusDisabled`. On the root it runs after the
+engine's `press_focus`, registered first, which finds no `TabIndex` at or above
+the root and clears focus. The list's own `PressFocusDisabled` stops that walk,
+while the engine's `listbox_press` still moves the cursor. A press on the field
+is the engine's, which places the caret and focuses the field through its
+`TabIndex`. `file_picker_click` triggers `FilePickerCommand` with `Enter` on a
+`PointerClick` with count two or more on the list.
 
 ## Tests
 
 Tests drive a full `App` headlessly: `CorePlugin` and `FilePickerPlugin`, a
-`TerminalCamera`, a `TerminalSize`, keys, mouse and pastes written as
-`plurimus_term` messages, and the composed frame read from the render sub-app.
-`tests/support/mod.rs` carries those helpers, copied from plurimus's unpublished
-`plurimus_test`, plus two scratch directories from `tempfile`, one of them with
-more entries than the list has rows, `spawn_picker_with`, which spawns a picker
-with more components from its first frame, `listening_parent`, which spawns an
-entity that records the key presses bubbling past a picker spawned under it, and
-`path`, `directory`, `field_of`, `list_of` and `set_path`, which reach the field
-and the list through `FilePickerParts`, the last writing a new `TextInput` to
-the field. `tests/source.rs` lists an in-memory `DirectorySource` with no
-working directory; the `tempfile` tests are the disk's.
+`TerminalCamera`, a `TerminalSize`, a `VirtualWindow` spawned before the first
+frame, keys and mouse written as a backend would through `plurimus_term`'s
+`TerminalInput` and pastes as `PasteMessage`, and the composed frame read from
+the render sub-app. `tests/support/mod.rs` carries those helpers, copied from
+plurimus's unpublished `plurimus_test`, keys named by bevy's `Key`, plus two
+scratch directories from `tempfile`, one of them with more entries than the list
+has rows, `spawn_picker_with`, which spawns a picker with more components from
+its first frame, `listening_parent`, which spawns an entity that records the key
+presses bubbling past a picker spawned under it, and `path`, `directory`,
+`field_of`, `list_of` and `set_path`, which reach the field and the list through
+`FilePickerParts`, the last writing a new `TextInput` to the field, and
+`command`, which triggers `FilePickerCommand`. `tests/source.rs` lists an
+in-memory `DirectorySource` with no working directory; the `tempfile` tests are
+the disk's. `tests/host.rs` swaps a field's `TextField` for an `EditableText`
+and drives the picker through the editor.
