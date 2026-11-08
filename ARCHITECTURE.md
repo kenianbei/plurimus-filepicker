@@ -184,13 +184,14 @@ moved; any other hit is consumed and triggers `FilePickerCommand`, except
 the list's children as its rows and its `ComputedWidgetArea`'s height, at least
 one, as a page: Up and Down move one row and wrap, PageUp and PageDown move a
 page and stop at the first and last rows, a cursor on no row starts from the
-first, and a move inserts `ActiveDescendant`. So Up and Down over fewer than two
-rows, PageUp on the first row and PageDown on the last bubble on to the picker's
-ancestors. Because the field's keys lack everything `FilePickerKeys` binds, a
-key bound in both is the picker's. The engine resolves `ComputedDisabled` onto
-the root, the field and the list from an `InteractionDisabled` on the root or
-any ancestor, so a disabled picker's field types nothing and its keys pass the
-root and bubble on.
+first, and a move inserts `ActiveDescendant`. So Up and Down with the cursor on
+the only row, PageUp on the first row and PageDown on the last bubble on to the
+picker's ancestors; on the "no match" row, which holds no cursor, the first
+arrow moves the cursor onto it and is consumed. Because the field's keys lack
+everything `FilePickerKeys` binds, a key bound in both is the picker's. The
+engine resolves `ComputedDisabled` onto the root, the field and the list from an
+`InteractionDisabled` on the root or any ancestor, so a disabled picker's field
+types nothing and its keys pass the root and bubble on.
 
 `FilePickerCommand { entity, action }` is a public entity event;
 `apply_file_picker_command` hands it to the crate-private `PickerAccess::apply`
@@ -208,12 +209,14 @@ A bracketed paste is the engine's: `text_input_paste` on the focused field.
 
 Two pointer observers on `bevy_picking`'s events: `file_picker_press` focuses
 the field with `FocusCause::Pressed` on a `PointerPress` on the root or on the
-list, unless the root has `PressFocusDisabled`. On the root it runs after the
-engine's `press_focus`, registered first, which finds no `TabIndex` at or above
-the root and clears focus. The list's own `PressFocusDisabled` stops that walk,
-while the engine's `listbox_press` still moves the cursor. A press on the field
-is the engine's, which places the caret and focuses the field through its
-`TabIndex`. `file_picker_click` triggers `FilePickerCommand` with `Enter` on a
+list, unless the root has `PressFocusDisabled`. On the root the engine's
+`press_focus` finds no `TabIndex` at or above it and clears focus; the field
+ends up focused because `file_picker_press` runs after it, which bevy's
+`EntityHashMap` of global observers decides rather than registration order. The
+list's own `PressFocusDisabled` stops that walk, while the engine's
+`listbox_press` still moves the cursor. A press on the field is the engine's,
+which places the caret and focuses the field through its `TabIndex`.
+`file_picker_click` triggers `FilePickerCommand` with `Enter` on a
 `PointerClick` with count two or more on the list.
 
 ## Tests

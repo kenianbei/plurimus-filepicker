@@ -42,8 +42,9 @@ A host may dress the field as upstream's text input instead, in a window or on a
 plurimus node: remove `TextField` and add `bevy_ui_widgets::TextInput`, and the
 picker reads and writes the field's `EditableText`. That field keeps the arrows,
 Home and End for its caret, so the picker's arrow bindings do not reach it
-there; rebind them in `FilePickerKeys` - Alt with an arrow passes upstream's
-field - or trigger `FilePickerCommand`.
+there; rebind them in `FilePickerKeys` - Alt with Up or Down passes upstream's
+field, and Alt with Left or Right does too except on macOS - or trigger
+`FilePickerCommand`.
 
 | key                        | does                                         |
 | -------------------------- | -------------------------------------------- |
@@ -57,11 +58,11 @@ field - or trigger `FilePickerCommand`.
 
 Up and Down wrap from one end of the list to the other, as a plurimus list's
 arrows do; PageUp and PageDown move by the list's height and stop at the ends. A
-list key that moves nothing - an arrow over a single row, PageUp on the first
-row, PageDown on the last - bubbles on to the picker's ancestors, so a page key
-pressed at an end moves focus to the widget beyond it, within the modal when the
-picker is in one. To keep them, observe `FocusedInput<KeyboardInput>` on the
-picker and stop those keys there.
+list key that moves nothing - an arrow with the cursor on the only row, PageUp
+on the first row, PageDown on the last - bubbles on to the picker's ancestors,
+so a page key pressed at an end moves focus to the widget beyond it, within the
+modal when the picker is in one. To keep them, observe
+`FocusedInput<KeyboardInput>` on the picker and stop those keys there.
 
 The field takes a plurimus text field's keys:
 

@@ -42,9 +42,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   those names and applicable through `FilePickerCommand`. Up and Down wrap from
   one end of the list to the other, as a plurimus list's arrows do; PageUp and
   PageDown move by the list's height and stop at the ends. A list key that moves
-  nothing - an arrow over a single row, a page key at the end it moves towards -
-  bubbles on to the picker's ancestors, where before Up on the first row and
-  Down on the last did.
+  nothing - an arrow with the cursor on the only row, a page key at the end it
+  moves towards - bubbles on to the picker's ancestors, where before Up on the
+  first row and Down on the last did.
 - A held Enter acts once: a key repeat no longer descends again into the
   directory the first press opened.
 - The field's selection ends when it loses focus, as every plurimus field's
