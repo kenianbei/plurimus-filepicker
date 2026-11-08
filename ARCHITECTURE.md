@@ -45,11 +45,15 @@ A picker is three entities and rows the crate respawns:
   borrowed unless an IME preedit splits it and written with `set_text` and a
   queued `TextEdit::TextEnd`, and its `TextInput` otherwise, written whole. A
   host dresses the field as upstream's text input by removing `TextField` and
-  adding `bevy_ui_widgets::TextInput`; that observer takes the arrows, Home and
-  End before they bubble. The field's `TextInputKeys` is the root's less every
-  `KeyBinding` the root's `FilePickerKeys` holds, written on
-  `Added<FilePickerParts>` and whenever either changes. The field holds focus
-  and is the picker's tab stop.
+  adding `bevy_ui_widgets::TextInput`, whose global observer takes the arrows,
+  Home and End for the caret and stops them. `field::reclaim_list_step`,
+  observed on the field itself and so run after that global observer, takes back
+  a key the root's `FilePickerKeys` binds as a list step: unless an IME is
+  composing, it pops a trailing `TextEdit::Up` or `Down` from the editor's
+  pending edits and lets the key propagate to the root. The field's
+  `TextInputKeys` is the root's less every `KeyBinding` the root's
+  `FilePickerKeys` holds, written on `Added<FilePickerParts>` and whenever
+  either changes. The field holds focus and is the picker's tab stop.
 - **The list**, a child spawned from `listbox()` with its `TabIndex` removed, so
   `ListBox`, which requires `ActiveDescendant`, with `Hovered`, `StylistCache`,
   `ComputedWidgetArea` and a `UiWidget`, and carrying the public marker
@@ -235,5 +239,6 @@ presses bubbling past a picker spawned under it, and `path`, `directory`,
 `FilePickerParts`, the last writing a new `TextInput` to the field, and
 `command`, which triggers `FilePickerCommand`. `tests/source.rs` lists an
 in-memory `DirectorySource` with no working directory; the `tempfile` tests are
-the disk's. `tests/host.rs` swaps a field's `TextField` for an `EditableText`
-and drives the picker through the editor.
+the disk's. `tests/host.rs` swaps a field's `TextField` for upstream's
+`TextInput`, with `bevy_ui_widgets`' `TextInputPlugin` running, and drives the
+picker through the editor and the arrows.

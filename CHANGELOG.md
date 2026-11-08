@@ -21,9 +21,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A host may dress the field as upstream's text input instead, in a window or on
   a plurimus node: with `TextField` removed and `bevy_ui_widgets::TextInput`
   added, the picker reads and writes the field's `EditableText`, which wins over
-  its `TextInput` when both are there. That field keeps the arrows, Home and End
-  for its caret, so the picker's arrow bindings do not reach the picker there; a
-  host rebinds them in `FilePickerKeys` or triggers `FilePickerCommand`.
+  its `TextInput` when both are there. Up and Down stay the picker's there: the
+  picker drops the caret move that field makes for them and steps the list. The
+  field keeps Left, Right, Home and End for its caret, so the picker's Left and
+  Right do not reach the picker there; a host rebinds them in `FilePickerKeys`
+  or triggers `FilePickerCommand`.
 
 ### Changed
 

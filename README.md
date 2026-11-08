@@ -40,11 +40,11 @@ picker does not - a window's double click on a row - triggers
 
 A host may dress the field as upstream's text input instead, in a window or on a
 plurimus node: remove `TextField` and add `bevy_ui_widgets::TextInput`, and the
-picker reads and writes the field's `EditableText`. That field keeps the arrows,
-Home and End for its caret, so the picker's arrow bindings do not reach it
-there; rebind them in `FilePickerKeys` - Alt with Up or Down passes upstream's
-field, and Alt with Left or Right does too except on macOS - or trigger
-`FilePickerCommand`.
+picker reads and writes the field's `EditableText`. Up and Down still step the
+list: the picker drops the caret move upstream's field makes for them. That
+field keeps Left, Right, Home and End for its caret, so Left and Right do not
+reach the picker there; rebind them in `FilePickerKeys` - Alt with Left or Right
+passes upstream's field except on macOS - or trigger `FilePickerCommand`.
 
 | key                        | does                                         |
 | -------------------------- | -------------------------------------------- |

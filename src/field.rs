@@ -1,10 +1,17 @@
 use std::borrow::Cow;
 
 use bevy_ecs::change_detection::{DetectChanges, Mut};
-use bevy_ecs::prelude::{Entity, Query};
+use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::prelude::{Entity, On, Query, Without};
 use bevy_ecs::system::SystemParam;
+use bevy_input::keyboard::KeyboardInput;
 use bevy_text::{EditableText, TextEdit};
+use plurimus_term::HeldModifiers;
+use plurimus_ui::bevy_input_focus::FocusedInput;
+use plurimus_ui::{ComputedDisabled, first_bound};
 use plurimus_widgets::TextInput;
+
+use crate::keys::{FilePickerAction, FilePickerKeys};
 
 /// The field's text, wherever its host keeps it: in `EditableText` when the
 /// host dressed the field as upstream's text input, which is then the text
@@ -60,4 +67,33 @@ impl FieldText<'_, '_> {
             _ => {}
         }
     }
+}
+
+/// Upstream's field takes Up and Down for its caret even in one row. Observed
+/// on the field, so after upstream's global observer: a list step the picker
+/// binds drops the field's vertical edit and bubbles on to the picker.
+pub(crate) fn reclaim_list_step(
+    mut input: On<FocusedInput<KeyboardInput>>,
+    held: HeldModifiers,
+    mut fields: Query<(&ChildOf, &mut EditableText)>,
+    pickers: Query<&FilePickerKeys, Without<ComputedDisabled>>,
+) {
+    let Ok((parent, mut editor)) = fields.get_mut(input.focused_entity) else {
+        return;
+    };
+    let Ok(keys) = pickers.get(parent.parent()) else {
+        return;
+    };
+    let is_list_step =
+        first_bound(&keys.0, &input.input, held.get()).is_some_and(FilePickerAction::is_list_step);
+    if !is_list_step || editor.is_composing() {
+        return;
+    }
+    if matches!(
+        editor.pending_edits.last(),
+        Some(TextEdit::Up(_) | TextEdit::Down(_))
+    ) {
+        editor.pending_edits.pop();
+    }
+    input.propagate(true);
 }

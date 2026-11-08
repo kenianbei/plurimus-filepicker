@@ -50,6 +50,12 @@ pub enum FilePickerAction {
     PageDown,
 }
 
+impl FilePickerAction {
+    pub(crate) const fn is_list_step(self) -> bool {
+        matches!(self, Self::Up | Self::Down | Self::PageUp | Self::PageDown)
+    }
+}
+
 /// The picker's key bindings, scanned first to last.
 ///
 /// A key reaches the picker by bubbling from its focused field, which took
@@ -262,14 +268,7 @@ pub(crate) fn file_picker_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    let is_list_step = matches!(
-        action,
-        FilePickerAction::Up
-            | FilePickerAction::Down
-            | FilePickerAction::PageUp
-            | FilePickerAction::PageDown
-    );
-    if is_list_step {
+    if action.is_list_step() {
         if access.step_cursor(picker, action) {
             input.propagate(false);
         }

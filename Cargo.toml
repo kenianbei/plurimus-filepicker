@@ -33,6 +33,8 @@ plurimus_ui = "0.9.0"
 plurimus_widgets = "0.9.0"
 
 [dev-dependencies]
+bevy_ui_widgets = "0.20"
+bevy_window = "0.20"
 plurimus_crossterm = "0.9.0"
 tempfile = "3"
 

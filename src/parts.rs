@@ -15,6 +15,7 @@ use plurimus_widgets::{
     text_field,
 };
 
+use crate::field::reclaim_list_step;
 use crate::keys::FilePickerKeys;
 use crate::layout::split_area;
 use crate::picker::{FilePicker, FilePickerLook};
@@ -36,10 +37,11 @@ pub struct FilePickerParts {
 /// input instead, in a window or on a plurimus node, by removing
 /// `TextField` and adding `bevy_ui_widgets::TextInput`: the picker then
 /// reads and writes the field's `EditableText`, which wins over its
-/// `TextInput` when both are there. That field takes the arrows, Home and
-/// End for its caret, so the picker's arrow bindings never reach the
-/// picker; a host rebinds them in [`FilePickerKeys`] or triggers
-/// [`FilePickerCommand`].
+/// `TextInput` when both are there. That field takes Left, Right, Home and
+/// End for its caret, so the picker's Left and Right bindings do not reach
+/// the picker; a host rebinds them in [`FilePickerKeys`] or triggers
+/// [`FilePickerCommand`]. Its Up and Down stay the picker's list steps: the
+/// picker drops the caret move upstream queued for them.
 ///
 /// [`FilePickerKeys`]: crate::FilePickerKeys
 /// [`FilePickerCommand`]: crate::FilePickerCommand
@@ -64,6 +66,7 @@ pub(crate) fn install_file_picker_parts(
                 UiOrder(0),
                 ChildOf(picker),
             ))
+            .observe(reclaim_list_step)
             .id();
         // No `TabIndex` and no focus on a press: the field holds focus and
         // the picker steps the list from it.
