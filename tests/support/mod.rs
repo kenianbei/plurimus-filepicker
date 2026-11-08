@@ -181,7 +181,7 @@ pub fn character(c: char) -> Key {
 #[derive(Debug, Clone)]
 enum Report {
     Key(Key, ButtonState, bool),
-    Button(ButtonState, Position),
+    Button(MouseButton, ButtonState, Position),
     Moved(Position),
 }
 
@@ -189,7 +189,7 @@ fn inject(In(report): In<Report>, mut input: TerminalInput) {
     let none = KeyModifiers::default();
     match report {
         Report::Key(key, state, repeat) => input.key(key, state, repeat, none),
-        Report::Button(state, at) => input.button(MouseButton::Left, state, at, none),
+        Report::Button(button, state, at) => input.button(button, state, at, none),
         Report::Moved(at) => input.moved(at, none),
     }
 }
@@ -236,13 +236,18 @@ pub fn send_paste(app: &mut App, text: &str) {
     app.update();
 }
 
-/// Moves to `(x, y)`, presses left there and releases, ticking after each
-/// so hover resolves before the press lands.
-pub fn click(app: &mut App, x: u16, y: u16) {
+/// Moves to `(x, y)`, presses `button` there and releases, ticking after
+/// each so hover resolves before the press lands.
+pub fn click_button(app: &mut App, button: MouseButton, x: u16, y: u16) {
     let at = Position::new(x, y);
     send(app, Report::Moved(at));
-    send(app, Report::Button(ButtonState::Pressed, at));
-    send(app, Report::Button(ButtonState::Released, at));
+    send(app, Report::Button(button, ButtonState::Pressed, at));
+    send(app, Report::Button(button, ButtonState::Released, at));
+}
+
+/// A left click at `(x, y)`, as [`click_button`].
+pub fn click(app: &mut App, x: u16, y: u16) {
+    click_button(app, MouseButton::Left, x, y);
 }
 
 /// The composed frame as one line of cell symbols per row.

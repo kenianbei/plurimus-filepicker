@@ -8,6 +8,7 @@ use bevy_input::keyboard::KeyboardInput;
 use plurimus_term::HeldModifiers;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerPress};
+use plurimus_ui::bevy_picking::pointer::PointerButton;
 use plurimus_ui::{
     ComputedDisabled, ComputedWidgetArea, Key, KeyBinding, ModalDismiss, PressFocusDisabled,
     ValueChange, first_bound,
@@ -300,13 +301,13 @@ pub(crate) fn file_picker_press(
     }
 }
 
-/// A double click on a row is `Enter` on it.
+/// A primary double click on a row is `Enter` on it.
 pub(crate) fn file_picker_click(
     click: On<PointerClick>,
     lists: Query<&ChildOf, With<FilePickerList>>,
     mut commands: Commands,
 ) {
-    if click.count < DOUBLE_CLICK {
+    if click.button != PointerButton::Primary || click.count < DOUBLE_CLICK {
         return;
     }
     if let Ok(child_of) = lists.get(click.entity) {

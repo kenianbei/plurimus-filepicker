@@ -55,7 +55,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Breaking:** the crate requires the plurimus after 0.9.0 that runs on bevy's
   own picking, input and list models; it depends on `bevy_text` 0.20 directly. A
   press and a double click on the list are `bevy_picking`'s, with click counts
-  per widget on the wall clock.
+  per widget on the wall clock. Only a primary double click chooses, as only the
+  primary button moves a plurimus list's cursor.
 
 ## [0.3.0] - 2026-10-27
 

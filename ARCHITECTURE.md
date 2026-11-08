@@ -221,7 +221,7 @@ list's own `PressFocusDisabled` stops that walk, while the engine's
 `listbox_press` still moves the cursor. A press on the field is the engine's,
 which places the caret and focuses the field through its `TabIndex`.
 `file_picker_click` triggers `FilePickerCommand` with `Enter` on a
-`PointerClick` with count two or more on the list.
+`PointerClick` of the primary button with count two or more on the list.
 
 ## Tests
 

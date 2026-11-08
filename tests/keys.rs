@@ -10,10 +10,11 @@ use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use bevy_input::keyboard::Key;
 use plurimus_filepicker::{FilePicker, FilePickerAction, FilePickerLook};
+use plurimus_term::MouseButton;
 use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::{InteractionDisabled, ModalDismiss, ValueChange};
 use support::{
-    Heard, character, click, command, cursor, directory, field_of, focused, list_of,
+    Heard, character, click, click_button, command, cursor, directory, field_of, focused, list_of,
     listening_parent, path, press_key, press_key_with_ctrl, repeat_key, row_texts, rows, scratch,
     set_path, spawn_picker, spawn_picker_with, type_text,
 };
@@ -336,6 +337,21 @@ fn a_click_moves_the_cursor_and_a_double_click_chooses() {
 
     click(&mut app, 3, 4);
     assert_eq!(chosen(&app), [(entity, dir.path().join("a.txt"))]);
+}
+
+#[test]
+fn a_secondary_double_click_chooses_nothing() {
+    let dir = scratch();
+    let mut app = logged_app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let list = list_of(&app, entity);
+    let opened_on = cursor(&app, list);
+
+    click_button(&mut app, MouseButton::Right, 3, 4);
+    click_button(&mut app, MouseButton::Right, 3, 4);
+    assert!(chosen(&app).is_empty(), "{:?}", chosen(&app));
+    assert_eq!(path(&app, entity), "", "nothing entered");
+    assert_eq!(cursor(&app, list), opened_on);
 }
 
 fn has_new(app: &App) -> bool {
