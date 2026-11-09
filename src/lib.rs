@@ -8,6 +8,7 @@ use plurimus_ui::UiSystems;
 use plurimus_ui::bevy_input_focus::InputFocusSystems;
 use plurimus_widgets::{WidgetSystems, WidgetsPlugin};
 
+mod field;
 mod keys;
 mod layout;
 mod listing;
@@ -18,7 +19,8 @@ mod picker;
 mod source;
 mod style;
 
-pub use keys::{FilePickerAction, FilePickerKeys};
+pub use keys::{FilePickerAction, FilePickerCommand, FilePickerKeys};
+pub use parts::{FilePickerField, FilePickerList, FilePickerParts};
 pub use picker::{
     FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, FilePickerMatchStyle,
     RowDecoration, file_picker,
@@ -41,8 +43,9 @@ impl Plugin for FilePickerPlugin {
             PreUpdate,
             (
                 (
-                    parts::install_file_picker_list,
-                    parts::mirror_look,
+                    parts::install_file_picker_parts,
+                    parts::mirror_list_look,
+                    parts::mirror_field_keys,
                     parts::redirect_focus,
                 )
                     .chain()
@@ -65,8 +68,8 @@ impl Plugin for FilePickerPlugin {
             Update,
             style::style_file_pickers.in_set(WidgetSystems::Style),
         );
+        app.add_observer(keys::apply_file_picker_command);
         app.add_observer(keys::file_picker_key);
-        app.add_observer(keys::file_picker_paste);
         app.add_observer(keys::file_picker_press);
         app.add_observer(keys::file_picker_click);
     }

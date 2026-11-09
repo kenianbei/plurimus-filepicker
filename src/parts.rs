@@ -5,44 +5,86 @@ use bevy_ecs::prelude::{
 };
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiOrder, local_area};
+use plurimus_ui::bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_ui::bevy_input_focus::{FocusCause, InputFocus};
-use plurimus_ui::{ComputedWidgetArea, Key, ScrollArea, ScrollOffset, apply_offset};
+use plurimus_ui::{
+    ComputedWidgetArea, KeyBinding, PressFocusDisabled, ScrollArea, ScrollOffset, apply_offset,
+};
 use plurimus_widgets::{
-    ActiveDescendant, ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxSelectionMarker,
-    ListBoxStripe, listbox,
+    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, TextInputKeys, listbox,
+    text_field,
 };
 
+use crate::field::reclaim_list_step;
+use crate::keys::FilePickerKeys;
 use crate::layout::split_area;
-use crate::picker::FilePicker;
+use crate::picker::{FilePicker, FilePickerLook};
 
-/// The picker's child list, which holds focus and the tab stop for it.
+/// The picker's two children, spawned in the first `PreUpdate` after it.
 #[derive(Component, Debug, Clone, Copy)]
-pub(crate) struct PickerList(pub Entity);
+pub struct FilePickerParts {
+    /// The path field: a `TextField` the engine edits, which holds the
+    /// picker's focus and is its tab stop.
+    pub field: Entity,
+    /// The `ListBox` of entries, stepped from the field.
+    pub list: Entity,
+}
 
-/// Spawns the list under a new picker.
-pub(crate) fn install_file_picker_list(
-    pickers: Query<Entity, Added<FilePicker>>,
+/// Marks a picker's field.
+///
+/// The field carries `TextField`, so the engine's observers edit it
+/// wherever `WidgetsPlugin` runs. A host may dress it as upstream's text
+/// input instead, in a window or on a plurimus node, by removing
+/// `TextField` and adding `bevy_ui_widgets::TextInput`: the picker then
+/// reads and writes the field's `EditableText`, which wins over its
+/// `TextInput` when both are there. That field takes Left, Right, Home and
+/// End for its caret, so the picker's Left and Right bindings do not reach
+/// the picker; a host rebinds them in [`FilePickerKeys`] or triggers
+/// [`FilePickerCommand`]. Its Up and Down stay the picker's list steps: the
+/// picker drops the caret move upstream queued for them.
+///
+/// [`FilePickerKeys`]: crate::FilePickerKeys
+/// [`FilePickerCommand`]: crate::FilePickerCommand
+#[derive(Component, Debug, Clone, Copy)]
+pub struct FilePickerField;
+
+/// Marks a picker's list.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct FilePickerList;
+
+/// Spawns the field and the list under a new picker.
+pub(crate) fn install_file_picker_parts(
+    pickers: Query<(Entity, &FilePicker), Added<FilePicker>>,
     mut commands: Commands,
 ) {
-    for picker in &pickers {
-        // Enter is the picker's, and space, Home and End are the field's.
-        let list_keys = ListBoxKeys(vec![
-            (Key::ArrowUp.into(), ListBoxAction::Up),
-            (Key::ArrowDown.into(), ListBoxAction::Down),
-            (Key::PageUp.into(), ListBoxAction::PageUp),
-            (Key::PageDown.into(), ListBoxAction::PageDown),
-        ]);
+    for (picker, state) in &pickers {
+        let field = commands
+            .spawn((
+                text_field(state.opened_on()),
+                FilePickerField,
+                UiArea::Fixed(Rect::ZERO),
+                UiOrder(0),
+                ChildOf(picker),
+            ))
+            .observe(reclaim_list_step)
+            .id();
+        // No `TabIndex` and no focus on a press: the field holds focus and
+        // the picker steps the list from it.
         let list = commands
             .spawn((
                 listbox(),
-                list_keys,
+                FilePickerList,
+                PressFocusDisabled,
                 ScrollArea::new(Size::ZERO),
                 UiArea::Fixed(Rect::ZERO),
                 UiOrder(0),
                 ChildOf(picker),
             ))
+            .remove::<TabIndex>()
             .id();
-        commands.entity(picker).insert(PickerList(list));
+        commands
+            .entity(picker)
+            .insert(FilePickerParts { field, list });
     }
 }
 
@@ -53,82 +95,100 @@ type Pickers<'w, 's> = Query<
         Ref<'static, ComputedWidgetArea>,
         &'static ComputedUiCamera,
         Option<Ref<'static, UiOrder>>,
-        Ref<'static, PickerList>,
+        Ref<'static, FilePickerLook>,
+        Ref<'static, FilePickerParts>,
     ),
-    (With<FilePicker>, Without<ListBox>),
+    With<FilePicker>,
 >;
 
-type Lists<'w, 's> = Query<
+type Parts<'w, 's> = Query<
     'w,
     's,
     (
         &'static mut UiArea,
         &'static mut ComputedWidgetArea,
         &'static mut UiOrder,
-        &'static mut ScrollOffset,
-        &'static mut ActiveDescendant,
+        Option<&'static mut ScrollOffset>,
+        Option<&'static ActiveDescendant>,
     ),
-    (With<ListBox>, Without<FilePicker>),
+    Without<FilePicker>,
 >;
 
-/// Places the list beneath the field row, one order above the picker so it
-/// paints over the rest of the picker's area.
+/// Places the field after the prompt on the first row and the list beneath,
+/// one order above the picker so they paint over its area.
 pub(crate) fn place_file_picker_parts(
     cameras: CameraViewports,
     pickers: Pickers,
-    mut lists: Lists,
+    mut parts: Parts,
     mut commands: Commands,
 ) {
-    for (picker_area, camera, order, list) in &pickers {
+    for (picker_area, camera, order, look, pair) in &pickers {
         let moved = picker_area.is_changed()
-            || list.is_added()
+            || pair.is_added()
+            || look.is_changed()
             || order.as_ref().is_some_and(Ref::is_changed);
         if !moved {
             continue;
         }
-        let Ok((mut area, mut computed, mut list_order, mut offset, mut cursor)) =
-            lists.get_mut(list.0)
-        else {
-            continue;
-        };
-        let (_, rect) = split_area(picker_area.0);
+        let order = UiOrder(order.map_or(0, |order| order.0).saturating_add(1));
+        let viewport = cameras.of(camera.0);
+        let prompt = u16::try_from(look.prompt.width()).unwrap_or(u16::MAX);
+        let (field, list) = split_area(picker_area.0, prompt);
+        place(&mut parts, pair.field, field, viewport, order);
         // The engine reveals the cursor into a list with no area and leaves
         // the offset past it; the reveal has to run again once there is one.
-        if computed.0.is_empty() && !rect.is_empty() {
-            apply_offset(list.0, Position::ORIGIN, &mut offset, &mut commands);
-            cursor.set_changed();
+        if place(&mut parts, pair.list, list, viewport, order)
+            && let Ok((.., Some(mut offset), Some(cursor))) = parts.get_mut(pair.list)
+        {
+            apply_offset(pair.list, Position::ORIGIN, &mut offset, &mut commands);
+            commands.entity(pair.list).insert(cursor.clone());
         }
-        computed.set_if_neq(ComputedWidgetArea(rect));
-        let local = cameras
-            .of(camera.0)
-            .map_or(rect, |viewport| local_area(rect, viewport));
-        area.set_if_neq(UiArea::Fixed(local));
-        list_order.set_if_neq(UiOrder(order.map_or(0, |order| order.0).saturating_add(1)));
     }
 }
 
-type LookChanged = Or<(
-    Added<PickerList>,
+/// Writes a part's screen and camera-local areas and its order, answering
+/// whether its area went from empty to having cells.
+fn place(
+    parts: &mut Parts,
+    part: Entity,
+    rect: Rect,
+    viewport: Option<Rect>,
+    order: UiOrder,
+) -> bool {
+    let Ok((mut area, mut computed, mut part_order, ..)) = parts.get_mut(part) else {
+        return false;
+    };
+    let is_revealed = computed.0.is_empty() && !rect.is_empty();
+    computed.set_if_neq(ComputedWidgetArea(rect));
+    let local = viewport.map_or(rect, |viewport| local_area(rect, viewport));
+    area.set_if_neq(UiArea::Fixed(local));
+    part_order.set_if_neq(order);
+    is_revealed
+}
+
+type ListLookChanged = Or<(
+    Added<FilePickerParts>,
     Changed<ListBoxCursor>,
     Changed<ListBoxStripe>,
     Changed<ListBoxSelectionMarker>,
 )>;
 
-/// A removal is not copied: the engine does not repaint on one either.
-pub(crate) fn mirror_look(
+/// Copies the list's look down from the picker. A removal is not copied:
+/// the engine does not repaint on one either.
+pub(crate) fn mirror_list_look(
     pickers: Query<
         (
-            &PickerList,
+            &FilePickerParts,
             Option<&ListBoxCursor>,
             Option<&ListBoxStripe>,
             Has<ListBoxSelectionMarker>,
         ),
-        LookChanged,
+        ListLookChanged,
     >,
     mut commands: Commands,
 ) {
-    for (list, cursor, stripe, has_marker) in &pickers {
-        let mut list = commands.entity(list.0);
+    for (parts, cursor, stripe, has_marker) in &pickers {
+        let mut list = commands.entity(parts.list);
         if let Some(cursor) = cursor {
             list.insert(cursor.clone());
         }
@@ -139,14 +199,40 @@ pub(crate) fn mirror_look(
     }
 }
 
-/// Focus given to a picker lands on its list, where the engine's list keys
-/// act.
-pub(crate) fn redirect_focus(mut focus: ResMut<InputFocus>, lists: Query<&PickerList>) {
+type KeysChanged = Or<(
+    Added<FilePickerParts>,
+    Changed<TextInputKeys>,
+    Changed<FilePickerKeys>,
+)>;
+
+/// Gives the field the picker's `TextInputKeys` less every key
+/// `FilePickerKeys` binds: the engine's observer on the focused field runs
+/// before the picker's, so a key left bound here would never bubble to the
+/// picker.
+pub(crate) fn mirror_field_keys(
+    pickers: Query<(&FilePickerParts, &TextInputKeys, &FilePickerKeys), KeysChanged>,
+    mut commands: Commands,
+) {
+    for (parts, text_keys, picker_keys) in &pickers {
+        let is_pickers =
+            |binding: &KeyBinding| picker_keys.0.iter().any(|(bound, _)| bound == binding);
+        let kept = text_keys
+            .0
+            .iter()
+            .filter(|(binding, _)| !is_pickers(binding))
+            .cloned()
+            .collect();
+        commands.entity(parts.field).insert(TextInputKeys(kept));
+    }
+}
+
+/// Focus given to a picker lands on its field, where the engine edits.
+pub(crate) fn redirect_focus(mut focus: ResMut<InputFocus>, parts: Query<&FilePickerParts>) {
     if !focus.is_changed() {
         return;
     }
-    let Some(list) = focus.get().and_then(|focused| lists.get(focused).ok()) else {
+    let Some(parts) = focus.get().and_then(|focused| parts.get(focused).ok()) else {
         return;
     };
-    focus.set(list.0, FocusCause::Navigated);
+    focus.set(parts.field, FocusCause::Navigated);
 }

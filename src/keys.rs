@@ -1,24 +1,24 @@
 use std::path::MAIN_SEPARATOR_STR;
 
-use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{
-    Commands, Component, Entity, MessageWriter, On, Query, Res, ResMut, With, Without,
-};
+use bevy_ecs::event::EntityEvent;
+use bevy_ecs::hierarchy::{ChildOf, Children};
+use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
-use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_term::{KeyModifiers, LastCopied, PasteMessage, TerminalRequest};
+use plurimus_term::HeldModifiers;
 use plurimus_ui::bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
+use plurimus_ui::bevy_picking::events::{PointerClick, PointerPress};
+use plurimus_ui::bevy_picking::pointer::PointerButton;
 use plurimus_ui::{
-    Click, ComputedDisabled, Key, KeyBinding, ModalDismiss, PointerPress, PressFocusDisabled,
+    ComputedDisabled, ComputedWidgetArea, Key, KeyBinding, ModalDismiss, PressFocusDisabled,
     ValueChange, first_bound,
 };
-use plurimus_widgets::{ActiveDescendant, ListBox, TextInputAction, TextInputKeys};
+use plurimus_widgets::ActiveDescendant;
 
+use crate::field::FieldText;
 use crate::listing::{Entry, Listing};
-use crate::parts::PickerList;
-use crate::path::{directory_text, normalize};
+use crate::parts::{FilePickerList, FilePickerParts};
+use crate::path::{directory_text, normalize, split_at_separator};
 use crate::picker::{FilePicker, FilePickerLook};
 
 const TOGGLE_HIDDEN_CHARACTER: &str = ".";
@@ -39,17 +39,33 @@ pub enum FilePickerAction {
     ToggleHidden,
     /// Triggers `ModalDismiss` on the picker; the app decides what it means.
     Close,
+    /// Moves the list's cursor up a row, from the first to the last.
+    Up,
+    /// Moves the list's cursor down a row, from the last to the first.
+    Down,
+    /// Moves the list's cursor up by the list's height, stopping at the
+    /// first row.
+    PageUp,
+    /// Moves the list's cursor down by the list's height, stopping at the
+    /// last row.
+    PageDown,
+}
+
+impl FilePickerAction {
+    pub(crate) const fn is_list_step(self) -> bool {
+        matches!(self, Self::Up | Self::Down | Self::PageUp | Self::PageDown)
+    }
 }
 
 /// The picker's key bindings, scanned first to last.
 ///
-/// The child list takes `Up`, `Down`, `PageUp` and `PageDown` before these
-/// are consulted, while they move its cursor. One that cannot, on the first
-/// row or the last, is scanned here as any other key is, and with no binding
-/// bubbles on to the picker's ancestors. The field's [`TextInputKeys`] get
-/// whatever these leave. A key bound in both is the picker's: by default
-/// plain `Left` climbs and `Right` completes, while their shifted forms
-/// select.
+/// A key reaches the picker by bubbling from its focused field, which took
+/// its turn first with the picker's `TextInputKeys` less every key bound
+/// here, so a key bound in both is the picker's: by default plain `Left`
+/// climbs and `Right` completes, while their shifted forms select. What
+/// these leave bubbles on to the picker's ancestors, and so does a
+/// [`FilePickerAction::Up`], `Down`, `PageUp` or `PageDown` that moved
+/// nothing: one row, or a page key at the end it moves towards.
 #[derive(Component, Debug, Clone)]
 pub struct FilePickerKeys(pub Vec<(KeyBinding, FilePickerAction)>);
 
@@ -65,8 +81,30 @@ impl Default for FilePickerKeys {
                 FilePickerAction::ToggleHidden,
             ),
             (Key::Escape.into(), FilePickerAction::Close),
+            (Key::ArrowUp.into(), FilePickerAction::Up),
+            (Key::ArrowDown.into(), FilePickerAction::Down),
+            (Key::PageUp.into(), FilePickerAction::PageUp),
+            (Key::PageDown.into(), FilePickerAction::PageDown),
         ])
     }
+}
+
+/// Applies a [`FilePickerAction`] to a picker, as its bound key would.
+///
+/// The picker's own keys and a double click on its list arrive here too, so
+/// a host that sees a gesture the picker does not - a window's double click
+/// on a row - triggers this on the picker and gets the same `Enter`. A
+/// disabled picker ignores it.
+#[derive(EntityEvent, Debug, Clone, Copy)]
+pub struct FilePickerCommand {
+    /// The picker.
+    pub entity: Entity,
+    /// What to do to it.
+    pub action: FilePickerAction,
+}
+
+pub(crate) fn apply_file_picker_command(command: On<FilePickerCommand>, mut access: PickerAccess) {
+    access.apply(command.entity, command.action);
 }
 
 /// Everything an action reads or writes on a picker.
@@ -76,27 +114,32 @@ pub(crate) struct PickerAccess<'w, 's> {
         'w,
         's,
         (
-            &'static mut FilePicker,
-            &'static FilePickerKeys,
-            &'static TextInputKeys,
-            &'static PickerList,
+            &'static FilePicker,
+            &'static FilePickerParts,
             &'static mut FilePickerLook,
             &'static Listing,
         ),
         Without<ComputedDisabled>,
     >,
-    cursors: Query<'w, 's, &'static ActiveDescendant>,
+    fields: FieldText<'w, 's>,
+    lists: Query<
+        'w,
+        's,
+        (
+            &'static ComputedWidgetArea,
+            Option<&'static Children>,
+            &'static ActiveDescendant,
+        ),
+    >,
     entries: Query<'w, 's, &'static Entry>,
     commands: Commands<'w, 's>,
-    requests: MessageWriter<'w, TerminalRequest>,
-    copied: Res<'w, LastCopied>,
 }
 
 impl PickerAccess<'_, '_> {
-    fn apply(&mut self, picker: Entity, action: FilePickerAction, is_repeat: bool) {
+    fn apply(&mut self, picker: Entity, action: FilePickerAction) {
         match action {
             FilePickerAction::Parent => self.go_to_parent(picker),
-            FilePickerAction::Enter => self.enter(picker, is_repeat),
+            FilePickerAction::Enter => self.enter(picker),
             FilePickerAction::Complete => self.complete(picker),
             FilePickerAction::ToggleHidden => {
                 if let Ok((.., mut look, _)) = self.pickers.get_mut(picker) {
@@ -104,32 +147,75 @@ impl PickerAccess<'_, '_> {
                 }
             }
             FilePickerAction::Close => self.commands.trigger(ModalDismiss { entity: picker }),
+            FilePickerAction::Up
+            | FilePickerAction::Down
+            | FilePickerAction::PageUp
+            | FilePickerAction::PageDown => {
+                self.step_cursor(picker, action);
+            }
         }
     }
 
+    /// Moves the list's cursor as a list `action` does, answering whether
+    /// it moved. A cursor on no row starts from the first.
+    fn step_cursor(&mut self, picker: Entity, action: FilePickerAction) -> bool {
+        let Ok((_, parts, ..)) = self.pickers.get(picker) else {
+            return false;
+        };
+        let list = parts.list;
+        let Ok((area, Some(rows), cursor)) = self.lists.get(list) else {
+            return false;
+        };
+        let Some(last_row) = rows.len().checked_sub(1) else {
+            return false;
+        };
+        let current = cursor
+            .0
+            .and_then(|cursor| rows.iter().position(|&row| row == cursor));
+        let page = usize::from(area.0.height).max(1);
+        let next = match (action, current) {
+            (FilePickerAction::Up, Some(0)) => last_row,
+            (FilePickerAction::Up, Some(index)) => index - 1,
+            (FilePickerAction::Down, Some(index)) if index < last_row => index + 1,
+            (FilePickerAction::PageUp, Some(index)) => index.saturating_sub(page),
+            (FilePickerAction::PageDown, Some(index)) => index.saturating_add(page).min(last_row),
+            _ => 0,
+        };
+        if current == Some(next) {
+            return false;
+        }
+        self.commands
+            .entity(list)
+            .insert(ActiveDescendant(Some(rows[next])));
+        true
+    }
+
     fn cursor_entry(&self, picker: Entity) -> Option<Entry> {
-        let (_, _, _, list, ..) = self.pickers.get(picker).ok()?;
-        let row = self.cursors.get(list.0).ok()?.0?;
+        let (_, parts, ..) = self.pickers.get(picker).ok()?;
+        let row = self.lists.get(parts.list).ok()?.2.0?;
         self.entries.get(row).ok().cloned()
     }
 
     fn go_to_parent(&mut self, picker: Entity) {
-        let Ok((mut state, .., listing)) = self.pickers.get_mut(picker) else {
+        let Ok((state, parts, _, listing)) = self.pickers.get(picker) else {
             return;
         };
         if !listing.has_parent {
             return;
         }
+        let Some(text) = self.fields.value(parts.field) else {
+            return;
+        };
         let parent = normalize(
             &state
-                .resolved_directory()
+                .resolved_directory(&text)
                 .join(std::path::Component::ParentDir),
         );
-        let text = directory_text(&parent, state.base());
-        state.set_path(text);
+        self.fields
+            .set(parts.field, directory_text(&parent, state.base()));
     }
 
-    fn enter(&mut self, picker: Entity, is_repeat: bool) {
+    fn enter(&mut self, picker: Entity) {
         let Some(entry) = self.cursor_entry(picker) else {
             return;
         };
@@ -137,120 +223,97 @@ impl PickerAccess<'_, '_> {
             self.complete(picker);
             return;
         }
-        if is_repeat {
-            return;
-        }
-        let Ok((state, ..)) = self.pickers.get(picker) else {
+        let Ok((state, parts, ..)) = self.pickers.get(picker) else {
             return;
         };
-        let chosen = state.resolved_directory().join(&entry.name);
-        self.commands
-            .trigger(ValueChange::new(picker, chosen, true));
+        let Some(text) = self.fields.value(parts.field) else {
+            return;
+        };
+        let chosen = state.resolved_directory(&text).join(&entry.name);
+        self.commands.trigger(ValueChange {
+            source: picker,
+            value: chosen,
+            is_final: true,
+        });
     }
 
     fn complete(&mut self, picker: Entity) {
         let Some(entry) = self.cursor_entry(picker) else {
             return;
         };
-        let Ok((mut state, ..)) = self.pickers.get_mut(picker) else {
+        let Ok((_, parts, ..)) = self.pickers.get(picker) else {
+            return;
+        };
+        let Some(text) = self.fields.value(parts.field) else {
             return;
         };
         let suffix = if entry.is_dir { MAIN_SEPARATOR_STR } else { "" };
-        state.replace_filter(&format!("{}{suffix}", entry.name));
-    }
-
-    /// The field's turn at a key, answering whether it took it. The
-    /// clipboard's three are the host's to carry out, and taken regardless.
-    fn edit(&mut self, picker: Entity, input: &KeyboardInput, held: KeyModifiers) -> bool {
-        let Ok((mut state, _, keys, ..)) = self.pickers.get_mut(picker) else {
-            return false;
-        };
-        let field = state.bypass_change_detection().field_mut();
-        let (is_taken, is_edited) = match first_bound(&keys.0, input, held) {
-            Some(TextInputAction::Paste) => {
-                let copied = self.copied.0.as_deref();
-                (true, copied.is_some_and(|copied| field.paste(copied)))
-            }
-            Some(action @ (TextInputAction::Copy | TextInputAction::Cut)) => {
-                if let Some(selected) = field.selected_text() {
-                    self.requests.write(TerminalRequest::copy(selected));
-                }
-                let is_cut = action == TextInputAction::Cut;
-                (true, is_cut && field.delete_selection())
-            }
-            _ => {
-                let is_taken = field.handle(keys, input, held);
-                (is_taken, is_taken)
-            }
-        };
-        if is_edited {
-            state.set_changed();
-        }
-        is_taken
+        let completed = format!("{}{}{suffix}", split_at_separator(&text).0, entry.name);
+        self.fields.set(parts.field, completed);
     }
 }
 
-/// The picker's bindings first, then the field for whatever is left, so an
-/// unbound character types. Reached by bubbling from the focused child list.
+/// The picker's bindings, reached by bubbling from the focused field, which
+/// has typed what it took. A list step is applied here rather than through
+/// [`FilePickerCommand`], so a step that moved nothing can bubble on.
 pub(crate) fn file_picker_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
+    pickers: Query<&FilePickerKeys, Without<ComputedDisabled>>,
     mut access: PickerAccess,
 ) {
     let picker = input.focused_entity;
-    let Ok((_, keys, ..)) = access.pickers.get(picker) else {
+    let Ok(keys) = pickers.get(picker) else {
         return;
     };
-    let held = held.get();
-    if let Some(action) = first_bound(&keys.0, &input.input, held) {
-        input.propagate(false);
-        access.apply(picker, action, input.input.repeat);
-        return;
-    }
-    if access.edit(picker, &input.input, held) {
-        input.propagate(false);
-    }
-}
-
-/// A bracketed paste goes into the field at the caret, as typing does.
-pub(crate) fn file_picker_paste(
-    mut input: On<FocusedInput<PasteMessage>>,
-    mut access: PickerAccess,
-) {
-    let Ok((mut state, ..)) = access.pickers.get_mut(input.focused_entity) else {
+    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
+    if action.is_list_step() {
+        if access.step_cursor(picker, action) {
+            input.propagate(false);
+        }
+        return;
+    }
     input.propagate(false);
-    if state
-        .bypass_change_detection()
-        .field_mut()
-        .paste(&input.input.0)
-    {
-        state.set_changed();
+    // One Enter chooses once, however long the key is held.
+    if action != FilePickerAction::Enter || !input.input.repeat {
+        access.commands.trigger(FilePickerCommand {
+            entity: picker,
+            action,
+        });
     }
 }
 
-/// A press on the field row focuses the picker's list.
+/// A press on the picker or its list focuses the field, the picker's
+/// `PressFocusDisabled` covering both; a press on the field is the engine's.
 pub(crate) fn file_picker_press(
     press: On<PointerPress>,
-    lists: Query<&PickerList, Without<PressFocusDisabled>>,
+    lists: Query<&ChildOf, With<FilePickerList>>,
+    pickers: Query<&FilePickerParts, Without<PressFocusDisabled>>,
     mut focus: ResMut<InputFocus>,
 ) {
-    if let Ok(list) = lists.get(press.entity) {
-        focus.set(list.0, FocusCause::Pressed);
+    let picker = lists
+        .get(press.entity)
+        .map_or(press.entity, ChildOf::parent);
+    if let Ok(parts) = pickers.get(picker) {
+        focus.set(parts.field, FocusCause::Pressed);
     }
 }
 
-/// A double click on a row is `Enter` on it.
+/// A primary double click on a row is `Enter` on it.
 pub(crate) fn file_picker_click(
-    click: On<Click>,
-    lists: Query<&ChildOf, With<ListBox>>,
-    mut access: PickerAccess,
+    click: On<PointerClick>,
+    lists: Query<&ChildOf, With<FilePickerList>>,
+    mut commands: Commands,
 ) {
-    if click.count < DOUBLE_CLICK {
+    if click.button != PointerButton::Primary || click.count < DOUBLE_CLICK {
         return;
     }
     if let Ok(child_of) = lists.get(click.entity) {
-        access.apply(child_of.parent(), FilePickerAction::Enter, false);
+        commands.trigger(FilePickerCommand {
+            entity: child_of.parent(),
+            action: FilePickerAction::Enter,
+        });
     }
 }

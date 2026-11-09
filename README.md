@@ -15,8 +15,8 @@ itself.
 
 ```toml
 [dependencies]
-plurimus = { version = "0.9", features = ["widgets"] }
-plurimus_filepicker = "0.3"
+plurimus = { version = "0.10", features = ["widgets"] }
+plurimus_filepicker = "0.4"
 ```
 
 ```rust,ignore
@@ -28,6 +28,24 @@ Give the picker a `UiArea`, focus it, and observe `ValueChange<PathBuf>` on its
 entity to receive the chosen path. `cargo run --example files` opens one over
 the current directory in a modal pane.
 
+The picker is three entities. The one you spawn draws the prompt and places the
+other two, which it spawns in the next `PreUpdate` and names in
+`FilePickerParts`: the field, a plurimus `TextField` marked `FilePickerField`
+that holds focus, is the tab stop and publishes its caret to the terminal, and
+the list, a `ListBox` marked `FilePickerList`. Focus given to the picker lands
+on the field. To move the field, write a new `TextInput` to it; to open on a
+path, `FilePicker::new(base).with_path(..)`. A host that sees a gesture the
+picker does not - a window's double click on a row - triggers
+`FilePickerCommand` on the picker and gets the same `Enter`.
+
+A host may dress the field as upstream's text input instead, in a window or on a
+plurimus node: remove `TextField` and add `bevy_ui_widgets::TextInput`, and the
+picker reads and writes the field's `EditableText`. Up and Down still step the
+list: the picker drops the caret move upstream's field makes for them. That
+field keeps Left, Right, Home and End for its caret, so Left and Right do not
+reach the picker there; rebind them in `FilePickerKeys` - Alt with Left or Right
+passes upstream's field except on macOS - or trigger `FilePickerCommand`.
+
 | key                        | does                                         |
 | -------------------------- | -------------------------------------------- |
 | typing                     | filters the listed directory                 |
@@ -38,12 +56,13 @@ the current directory in a modal pane.
 | Ctrl+.                     | toggles hidden entries                       |
 | Esc                        | triggers `ModalDismiss` on the picker        |
 
-The list keeps its four keys only while they move the cursor, as every plurimus
-list does. Up or PageUp on the first row and Down or PageDown on the last bubble
-on to the picker's ancestors, so a fresh arrow press at an end moves focus to
-the widget beyond it, within the modal when the picker is in one; a held arrow
-stops at the end. To keep them, observe `FocusedInput<KeyboardInput>` on the
-picker and stop those keys there.
+Up and Down wrap from one end of the list to the other, as a plurimus list's
+arrows do; PageUp and PageDown move by the list's height and stop at the ends. A
+list key that moves nothing - an arrow with the cursor on the only row, PageUp
+on the first row, PageDown on the last - bubbles on to the picker's ancestors,
+so a page key pressed at an end moves focus to the widget beyond it, within the
+modal when the picker is in one. To keep them, observe
+`FocusedInput<KeyboardInput>` on the picker and stop those keys there.
 
 The field takes a plurimus text field's keys:
 
@@ -58,13 +77,13 @@ The field takes a plurimus text field's keys:
 | a paste from the terminal        | goes in at the caret, over any selection |
 
 The picker's bindings are data in `FilePickerKeys` and the field's in
-`TextInputKeys`, both on the picker. `FilePickerKeys` is scanned first, so a key
-bound in both is the picker's: plain Left and Right climb and complete, and only
-their shifted forms reach the field. A copy goes out as a `TerminalRequest`,
-which `plurimus_crossterm` writes to the terminal's clipboard only with
-`CrosstermPlugin::clipboard` set. The three clipboard keys stay with the picker
-even with nothing to copy or paste; take them off its `TextInputKeys` to hand
-them to the app.
+`TextInputKeys`, both on the picker. The field gets the picker's `TextInputKeys`
+less every key `FilePickerKeys` binds, so a key bound in both is the picker's:
+plain Left and Right climb and complete, and only their shifted forms reach the
+field. A copy goes out as a `TerminalRequest`, which `plurimus_crossterm` writes
+to the terminal's clipboard only with `CrosstermPlugin::clipboard` set. The
+three clipboard keys stay with the field even with nothing to copy or paste;
+take them off the picker's `TextInputKeys` to hand them to the app.
 
 `..` lists first in any directory with a parent, so Enter on it climbs too.
 `FilePickerFloor` stops traversal above a directory. `FilePickerLook` sets the
@@ -83,6 +102,7 @@ spawn.
 
 | plurimus_filepicker | plurimus | bevy |
 | ------------------- | -------- | ---- |
+| 0.4                 | 0.10     | 0.20 |
 | 0.3                 | 0.9      | 0.20 |
 | 0.2                 | 0.8      | 0.19 |
 | 0.1                 | 0.7      | 0.19 |

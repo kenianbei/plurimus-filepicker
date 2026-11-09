@@ -4,6 +4,62 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- The picker's parts are entities a host can reach. `FilePickerParts` on the
+  picker names its field and its list, marked `FilePickerField` and
+  `FilePickerList`; `FilePicker::new(base).with_path(..)` opens the field on a
+  path; `FilePickerCommand`, an entity event carrying a `FilePickerAction`,
+  applies an action from outside as the bound key would, so a host's own double
+  click on a row can be `Enter`.
+- The field publishes its caret to the terminal, so screen readers and input
+  methods see it, and takes the pointer: a press places the caret, a drag or a
+  shifted press selects, a double press takes a word and a triple everything.
+  The caret covers a grapheme cluster at its width.
+- A host may dress the field as upstream's text input instead, in a window or on
+  a plurimus node: with `TextField` removed and `bevy_ui_widgets::TextInput`
+  added, the picker reads and writes the field's `EditableText`, which wins over
+  its `TextInput` when both are there. Up and Down stay the picker's there: the
+  picker drops the caret move that field makes for them and steps the list. The
+  field keeps Left, Right, Home and End for its caret, so the picker's Left and
+  Right do not reach the picker there; a host rebinds them in `FilePickerKeys`
+  or triggers `FilePickerCommand`.
+
+### Changed
+
+- **Breaking:** the path field is a child entity carrying plurimus's
+  `TextField`, edited and drawn by the engine, and it holds the picker's focus
+  and tab stop where the list did. `FilePicker::path` and `set_path` are gone:
+  read and write the field's `TextInput` through `FilePickerParts`.
+  `FilePicker::directory` and `filter` take the field's text. Focus given to the
+  picker still lands inside it, on the field; a press on the picker or a row
+  focuses the field too.
+- The field's keys are the picker's `TextInputKeys` less every key
+  `FilePickerKeys` binds, copied onto the field whenever either changes, so a
+  key bound in both stays the picker's.
+- The list's keys are the picker's: `FilePickerAction` gains `Up`, `Down`,
+  `PageUp` and `PageDown`, bound by default in `FilePickerKeys` to the keys of
+  those names and applicable through `FilePickerCommand`. Up and Down wrap from
+  one end of the list to the other, as a plurimus list's arrows do; PageUp and
+  PageDown move by the list's height and stop at the ends. A list key that moves
+  nothing - an arrow with the cursor on the only row, a page key at the end it
+  moves towards - bubbles on to the picker's ancestors, where before Up on the
+  first row and Down on the last did.
+- A held Enter acts once: a key repeat no longer descends again into the
+  directory the first press opened.
+- The field's selection ends when it loses focus, as every plurimus field's
+  does, including through a focus set on the picker itself, which passes through
+  the field; it stayed before.
+- **Breaking:** the crate requires plurimus 0.10, which runs on bevy's own
+  picking, input and list models, and it depends on `bevy_text` 0.20 directly.
+  An app moves to plurimus 0.10 with it. An app left on 0.9 resolves two copies
+  of plurimus, and the picker's components do not match the app's. Rust 1.97.1
+  is still enough. A press and a double click on the list are `bevy_picking`'s,
+  with click counts per widget on the wall clock. Only a primary double click
+  chooses, as only the primary button moves a plurimus list's cursor.
+
 ## [0.3.0] - 2026-10-27
 
 ### Changed

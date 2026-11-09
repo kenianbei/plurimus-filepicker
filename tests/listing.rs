@@ -11,13 +11,13 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_filepicker::{
-    FilePickerDecorator, FilePickerFloor, FilePickerLook, RowDecoration, file_picker,
+    FilePicker, FilePickerDecorator, FilePickerFloor, FilePickerLook, RowDecoration, file_picker,
 };
-use plurimus_ui::{ComputedDisabled, InteractionDisabled, UiArea};
+use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, InteractionDisabled, UiArea};
 use plurimus_widgets::{ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe};
 use support::{
-    app, composed_styled_frame, cursor, focus, focused, list_of, picker, row_texts, rows, scratch,
-    set_path, spawn_picker, spawn_picker_with, type_text,
+    app, composed_styled_frame, cursor, directory, field_of, focus, focused, list_of, path,
+    row_texts, rows, scratch, set_path, spawn_picker, spawn_picker_with, type_text,
 };
 
 #[test]
@@ -92,7 +92,7 @@ fn set_path_relists_and_filters() {
 
     set_path(&mut app, entity, "b.");
     assert_eq!(row_texts(&app), ["b.txt"]);
-    assert_eq!(picker(&app, entity).directory(), dir.path());
+    assert_eq!(directory(&app, entity), dir.path());
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn nothing_matching_draws_one_dim_row_without_cursor() {
     set_path(&mut app, entity, "zzz");
 
     assert_eq!(rows(&app)[1], "no match", "no gutter without a cursor");
-    let list = list_of(&mut app, entity);
+    let list = list_of(&app, entity);
     assert_eq!(cursor(&app, list), None);
 }
 
@@ -124,7 +124,7 @@ fn cursor_opens_after_the_parent_row_and_on_the_first_match() {
     let dir = scratch();
     let mut app = app();
     let entity = spawn_picker(&mut app, dir.path());
-    let list = list_of(&mut app, entity);
+    let list = list_of(&app, entity);
     let row = |app: &bevy_app::App, index: usize| app.world().get::<Children>(list).unwrap()[index];
 
     assert_eq!(cursor(&app, list), Some(row(&app, 1)));
@@ -155,7 +155,7 @@ fn unreadable_directory_lists_only_the_parent_and_keeps_the_field() {
     set_path(&mut app, entity, "nope/");
 
     assert_eq!(row_texts(&app), ["../"]);
-    assert_eq!(picker(&app, entity).path(), "nope/");
+    assert_eq!(path(&app, entity), "nope/");
 }
 
 #[test]
@@ -169,9 +169,8 @@ fn floor_clamps_the_field_back() {
     app.update();
     set_path(&mut app, entity, "../");
 
-    let clamped = picker(&app, entity);
-    assert_eq!(clamped.directory(), dir.path());
-    assert_eq!(clamped.filter(), "");
+    assert_eq!(directory(&app, entity), dir.path());
+    assert_eq!(FilePicker::filter(path(&app, entity)), "");
     assert_eq!(row_texts(&app), ["sub/", "Zeta/", "a.txt", "b.txt"]);
 }
 
@@ -185,9 +184,8 @@ fn a_relative_floor_resolves_against_the_base() {
         .insert(FilePickerFloor(Some("sub".into())));
     app.update();
 
-    let clamped = picker(&app, entity);
-    assert_eq!(clamped.path(), "sub/");
-    assert_eq!(clamped.directory(), dir.path().join("sub"));
+    assert_eq!(path(&app, entity), "sub/");
+    assert_eq!(directory(&app, entity), dir.path().join("sub"));
     assert_eq!(row_texts(&app), ["inner.rs"]);
 }
 
@@ -196,14 +194,14 @@ fn disabling_the_picker_disables_its_list() {
     let dir = scratch();
     let mut app = app();
     let entity = spawn_picker(&mut app, dir.path());
-    let list = list_of(&mut app, entity);
+    let list = list_of(&app, entity);
     app.world_mut()
         .entity_mut(entity)
         .insert(InteractionDisabled);
     app.update();
     assert!(app.world().get::<ComputedDisabled>(list).is_some());
     type_text(&mut app, "ab");
-    assert_eq!(picker(&app, entity).path(), "");
+    assert_eq!(path(&app, entity), "");
 
     app.world_mut()
         .entity_mut(entity)
@@ -211,7 +209,7 @@ fn disabling_the_picker_disables_its_list() {
     app.update();
     assert!(app.world().get::<ComputedDisabled>(list).is_none());
     type_text(&mut app, "ab");
-    assert_eq!(picker(&app, entity).path(), "ab");
+    assert_eq!(path(&app, entity), "ab");
 }
 
 #[test]
@@ -220,26 +218,26 @@ fn a_picker_under_a_disabled_ancestor_takes_no_keys() {
     let mut app = app();
     let parent = app.world_mut().spawn(InteractionDisabled).id();
     let entity = spawn_picker_with(&mut app, dir.path(), ChildOf(parent));
-    let list = list_of(&mut app, entity);
-    assert_eq!(focused(&app), Some(list));
+    let list = list_of(&app, entity);
+    assert_eq!(focused(&app), Some(field_of(&app, entity)));
     assert!(app.world().get::<ComputedDisabled>(list).is_some());
 
     type_text(&mut app, "ab");
 
-    assert_eq!(picker(&app, entity).path(), "");
+    assert_eq!(path(&app, entity), "");
 }
 
 #[test]
-fn focusing_the_picker_lands_on_its_list() {
+fn focusing_the_picker_lands_on_its_field() {
     let dir = scratch();
     let mut app = app();
     let entity = spawn_picker(&mut app, dir.path());
-    let list = list_of(&mut app, entity);
-    assert_eq!(focused(&app), Some(list));
+    let field = field_of(&app, entity);
+    assert_eq!(focused(&app), Some(field));
 
     focus(&mut app, entity);
     app.update();
-    assert_eq!(focused(&app), Some(list));
+    assert_eq!(focused(&app), Some(field));
 }
 
 #[test]
@@ -257,6 +255,24 @@ fn field_shows_prompt_text_and_caret_while_focused() {
         &caret_row[3..4],
         "the caret cell is styled unlike the text before it: {styled}"
     );
+}
+
+#[test]
+fn the_field_follows_the_prompts_width() {
+    let dir = scratch();
+    let mut app = app();
+    let entity = spawn_picker(&mut app, dir.path());
+    let field = field_of(&app, entity);
+    set_path(&mut app, entity, "b.");
+
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(FilePickerLook::default().with_prompt("abc> "));
+    app.update();
+
+    let area = app.world().get::<ComputedWidgetArea>(field).unwrap().0;
+    assert_eq!(area, Rect::new(5, 0, support::COLS - 5, 1));
+    assert_eq!(rows(&app)[0], "abc> b.");
 }
 
 const BADGE: &str = "X";
@@ -354,7 +370,7 @@ fn a_cursor_spawned_on_the_picker_dresses_its_list() {
         "{:?}",
         rows(&app)
     );
-    let list = list_of(&mut app, entity);
+    let list = list_of(&app, entity);
     assert_eq!(list_cursor(&app, list), Some(&Line::from(CURSOR)));
 }
 
@@ -363,7 +379,7 @@ fn look_given_to_a_live_picker_reaches_its_list() {
     let dir = scratch();
     let mut app = app();
     let entity = spawn_picker(&mut app, dir.path());
-    let list = list_of(&mut app, entity);
+    let list = list_of(&app, entity);
     let stripe = Style::new().bg(Color::Blue);
     app.world_mut().entity_mut(entity).insert((
         ListBoxStripe(stripe),
@@ -402,6 +418,6 @@ fn a_picker_added_to_a_dressed_entity_dresses_its_list() {
         .insert(file_picker(dir.path()));
     app.update();
 
-    let list = list_of(&mut app, entity);
+    let list = list_of(&app, entity);
     assert_eq!(list_cursor(&app, list), Some(&Line::from(CURSOR)));
 }

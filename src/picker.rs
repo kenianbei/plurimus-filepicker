@@ -5,7 +5,7 @@ use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_ui::{ComputedWidgetArea, Hovered, StylistCache};
-use plurimus_widgets::{TextInput, TextInputKeys};
+use plurimus_widgets::TextInputKeys;
 
 use crate::keys::FilePickerKeys;
 use crate::listing::{BuiltRows, Listing};
@@ -20,10 +20,14 @@ const DEFAULT_PROMPT: &str = "> ";
 /// it filters the entries. `..`, `~`, and an absolute path are ordinary
 /// text, which is what makes traversal free.
 ///
-/// The field is edited through the picker's [`TextInputKeys`]: they move
-/// the caret and select, copy and cut the selection as a `TerminalRequest`,
-/// and paste `LastCopied`. A bracketed paste goes in at the caret. The
-/// selection is drawn in `UiTheme::selection`, focused or not.
+/// The field is a child `TextField`, named by [`FilePickerParts`] on the
+/// picker and holding its focus: the engine edits its `TextInput` through
+/// the picker's [`TextInputKeys`], less the keys [`FilePickerKeys`] binds,
+/// places its caret by pointer and publishes it to the terminal. To move
+/// the field, write a new `TextInput` to that entity, or set the text of its
+/// `EditableText` where a host dressed it with one.
+///
+/// [`FilePickerParts`]: crate::FilePickerParts
 #[derive(Component, Debug, Clone)]
 #[require(
     Hovered,
@@ -38,8 +42,8 @@ const DEFAULT_PROMPT: &str = "> ";
     BuiltRows
 )]
 pub struct FilePicker {
-    field: TextInput,
     base: PathBuf,
+    opened_on: String,
 }
 
 impl FilePicker {
@@ -47,39 +51,37 @@ impl FilePicker {
     #[must_use]
     pub fn new(base: impl Into<PathBuf>) -> Self {
         Self {
-            field: TextInput::default(),
             base: base.into(),
+            opened_on: String::new(),
         }
     }
 
-    /// The field's text as typed.
+    /// Opened with this text in the field, caret at its end. Read once,
+    /// when the field is spawned.
     #[must_use]
-    pub fn path(&self) -> &str {
-        self.field.value()
+    pub fn with_path(mut self, path: impl Into<String>) -> Self {
+        self.opened_on = path.into();
+        self
     }
 
-    /// Replaces the field's text, caret at the end.
-    pub fn set_path(&mut self, path: impl Into<String>) {
-        self.field = TextInput::new(path);
+    /// The directory the list shows for the field's `text`: what precedes
+    /// its last separator, joined to the base when relative, lexically
+    /// normalized.
+    #[must_use]
+    pub fn directory(&self, text: &str) -> PathBuf {
+        or_current(self.resolved_directory(text))
     }
 
-    /// The directory the list shows: the field before its last separator,
-    /// joined to the base when relative, lexically normalized.
+    /// What follows the last separator of the field's `text`.
     #[must_use]
-    pub fn directory(&self) -> PathBuf {
-        or_current(self.resolved_directory())
-    }
-
-    /// What follows the field's last separator.
-    #[must_use]
-    pub fn filter(&self) -> &str {
-        split_at_separator(self.field.value()).1
+    pub fn filter(text: &str) -> &str {
+        split_at_separator(text).1
     }
 
     /// [`Self::directory`] with the working directory as the empty path,
     /// the form the floor is compared in.
-    pub(crate) fn resolved_directory(&self) -> PathBuf {
-        field_directory(self.field.value(), &self.base)
+    pub(crate) fn resolved_directory(&self, text: &str) -> PathBuf {
+        field_directory(text, &self.base)
     }
 
     /// The base relative paths are joined to.
@@ -88,19 +90,8 @@ impl FilePicker {
         &self.base
     }
 
-    pub(crate) const fn field(&self) -> &TextInput {
-        &self.field
-    }
-
-    pub(crate) const fn field_mut(&mut self) -> &mut TextInput {
-        &mut self.field
-    }
-
-    /// Replaces what follows the last separator, keeping the directory as
-    /// the user typed it.
-    pub(crate) fn replace_filter(&mut self, name: &str) {
-        let directory = split_at_separator(self.field.value()).0;
-        self.field = TextInput::new(format!("{directory}{name}"));
+    pub(crate) fn opened_on(&self) -> &str {
+        &self.opened_on
     }
 }
 
@@ -220,11 +211,13 @@ impl RowDecoration {
 
 /// A file picker opened on `base`, drawn like any other widget.
 ///
-/// Its list is a child spawned in the next `PreUpdate`; focusing the picker
-/// lands on that list, which is the tab stop. `ListBoxCursor`,
-/// `ListBoxStripe` and `ListBoxSelectionMarker` put on the picker are copied
-/// onto the list when it is spawned and whenever they change; removing one
-/// does not.
+/// Its field and list are children spawned in the next `PreUpdate` and
+/// named by [`FilePickerParts`]; focusing the picker lands on the field,
+/// which is the tab stop. `ListBoxCursor`, `ListBoxStripe` and
+/// `ListBoxSelectionMarker` put on the picker are copied onto the list when
+/// it is spawned and whenever they change; removing one does not.
+///
+/// [`FilePickerParts`]: crate::FilePickerParts
 #[must_use]
 pub fn file_picker(base: impl Into<PathBuf>) -> impl Bundle {
     (FilePicker::new(base), UiWidget::default())
