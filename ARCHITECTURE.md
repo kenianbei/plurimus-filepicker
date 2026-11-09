@@ -8,9 +8,8 @@ and the picker's components sit beside the app's own widgets. `bevy_input_focus`
 is not a dependency of its own: the crate reaches it through `plurimus_ui`'s
 re-export, at the version the engine uses. `bevy_text` is, at the 0.20 that
 `bevy_ui_widgets` already pulls in, for the `EditableText` of a field a host
-dressed as upstream's text input. The crate builds against the plurimus after
-0.9.0 that runs on `bevy_picking` and `bevy_ui_widgets`' models, through the
-`[patch.crates-io]` paths to `../plurimus`.
+dressed as upstream's text input. The crate builds against plurimus 0.10, which
+runs on `bevy_picking` and `bevy_ui_widgets`' models.
 
 `FilePickerPlugin` installs the crate's systems and observers. It requires
 `CorePlugin` first and adds `WidgetsPlugin` when absent.

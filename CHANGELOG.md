@@ -52,11 +52,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The field's selection ends when it loses focus, as every plurimus field's
   does, including through a focus set on the picker itself, which passes through
   the field; it stayed before.
-- **Breaking:** the crate requires the plurimus after 0.9.0 that runs on bevy's
-  own picking, input and list models; it depends on `bevy_text` 0.20 directly. A
-  press and a double click on the list are `bevy_picking`'s, with click counts
-  per widget on the wall clock. Only a primary double click chooses, as only the
-  primary button moves a plurimus list's cursor.
+- **Breaking:** the crate requires plurimus 0.10, which runs on bevy's own
+  picking, input and list models, and it depends on `bevy_text` 0.20 directly.
+  An app moves to plurimus 0.10 with it. An app left on 0.9 resolves two copies
+  of plurimus, and the picker's components do not match the app's. Rust 1.97.1
+  is still enough. A press and a double click on the list are `bevy_picking`'s,
+  with click counts per widget on the wall clock. Only a primary double click
+  chooses, as only the primary button moves a plurimus list's cursor.
 
 ## [0.3.0] - 2026-10-27
 
