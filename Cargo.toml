@@ -2,7 +2,7 @@
 name = "plurimus_filepicker"
 description = "A file picker widget for plurimus: a path field over a filtered directory listing."
 documentation = "https://docs.rs/plurimus_filepicker"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Norman Kerr"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -27,15 +27,15 @@ bevy_app = "0.20"
 bevy_ecs = "0.20"
 bevy_input = { version = "0.20", features = ["keyboard", "mouse"] }
 bevy_text = { version = "0.20", default-features = false }
-plurimus_core = "0.9.0"
-plurimus_term = "0.9.0"
-plurimus_ui = "0.9.0"
-plurimus_widgets = "0.9.0"
+plurimus_core = "0.10.0"
+plurimus_term = "0.10.0"
+plurimus_ui = "0.10.0"
+plurimus_widgets = "0.10.0"
 
 [dev-dependencies]
 bevy_ui_widgets = "0.20"
 bevy_window = "0.20"
-plurimus_crossterm = "0.9.0"
+plurimus_crossterm = "0.10.0"
 tempfile = "3"
 
 [profile.dev.package."*"]
@@ -68,10 +68,3 @@ type_complexity = "allow"
 
 # A two-arm match on a bool is a value match; house style.
 match_bool = "allow"
-
-[patch.crates-io]
-plurimus_core = { path = "../plurimus/crates/plurimus_core" }
-plurimus_term = { path = "../plurimus/crates/plurimus_term" }
-plurimus_ui = { path = "../plurimus/crates/plurimus_ui" }
-plurimus_widgets = { path = "../plurimus/crates/plurimus_widgets" }
-plurimus_crossterm = { path = "../plurimus/crates/plurimus_crossterm" }
